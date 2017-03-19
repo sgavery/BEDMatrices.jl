@@ -1,5 +1,5 @@
 # BEDMatrix.jl
-### Tools for efficiently reading, memory-mapping, and manipulating [PLINK](http://zzz.bwh.harvard.edu/plink/) (see also [PLINK1.9](https://www.cog-genomics.org/plink2)) BED formatted genotype data (.bed, .fam, .bim files) in [julia](http://julialang.org/).
+### Tools for efficiently reading, memory-mapping, and manipulating [PLINK](http://zzz.bwh.harvard.edu/plink/) (see also [PLINK1.9](https://www.cog-genomics.org/plink2)) BED formatted genotype data (.bed, .fam, .bim files) in [julia](http://julialang.org/). Based on, in part, the R package [BEDMatrix](https://github.com/QuantGen/BEDMatrix).
 
 ## Features
 
