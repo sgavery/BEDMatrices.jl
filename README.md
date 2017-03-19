@@ -16,6 +16,4 @@ See [PLINK1 description](http://zzz.bwh.harvard.edu/plink/binary.shtml) and [PLI
 * [StatGenData.jl](https://github.com/dmbates/StatGenData.jl)
 * [VarianceComponentTest.jl](https://github.com/Tao-Hu/VarianceComponentTest.jl)
 
-### See
-[Julia.jl](https://github.com/svaksha/Julia.jl/blob/master/Biology.md#genomics) for
-a listing of genomics tools in julia.
+### See [Julia.jl](https://github.com/svaksha/Julia.jl/blob/master/Biology.md#genomics) for a listing of genomics tools in julia.
