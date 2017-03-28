@@ -1,6 +1,4 @@
-module BEDMatrix
 
-# export ...
 
 ######################### Plink Constants #########################
 
@@ -22,6 +20,17 @@ const modes = Dict(0b0000_0001 => :SNPmajor,
 #  0b10 => 0b01
 const NA_byte = 0b11  # not recommended, 0xff? 0x9?
 const quarterstohuman = (0b10, NA_byte, 0b01, 0b00)
+
+"""
+    rawformat(snp::Integer)
+
+Returns RAW format from the BED format integers:
+0b00 => 0b10a
+0b11 => 0b00
+0b01 => NA_byte
+0b10 => 0b01
+
+"""
 @inline function rawformat(snp::Integer)
     @inbounds return quarterstohuman[snp + 1]
 end
@@ -346,4 +355,3 @@ end
 
 ## write to other formats?
 
-end #################### End Module ####################
