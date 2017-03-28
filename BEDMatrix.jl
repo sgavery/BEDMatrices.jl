@@ -227,10 +227,6 @@ immutable BEDMatrix{T<:Real, S<:AbstractMatrix} <: DenseArray{T, 2}
             error("n and p must be positive")
         end
 
-        if eltype(X) != UInt8
-            error("Matrix must have entries of type UInt8")
-        end
-
         byten = ceil(Int, n/4)
         lastrowheight = n - 4*(byten - 1)
 
