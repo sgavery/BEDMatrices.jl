@@ -14,21 +14,20 @@ const plinkmagic = [0b0110_1100, 0b0001_1011]
 const modes = Dict(0b0000_0001 => :SNPmajor,
                    0b0000_0000 => :SNPminor)
 
-#  0b00 => 0b10
-#  0b11 => 0b00
-#  0b01 => 0b11 # Missing
-#  0b10 => 0b01
 const NA_byte = 0b11  # not recommended, 0xff? 0x9?
 const quarterstohuman = (0b10, NA_byte, 0b01, 0b00)
 
 """
     rawformat(snp::Integer)
 
-Returns RAW format from the BED format integers:
-0b00 => 0b10a
-0b11 => 0b00
-0b01 => NA_byte
-0b10 => 0b01
+Returns RAW format from the BED format quarter-byte:
+
+| BED    | RAW       | Meaning                 |
+|:------ |:--------- |:----------------------- |
+| `0b00` | `0b10`    | homozygous minor allele |
+| `0b11` | `0b00`    | homozygous major allele |
+| `0b01` | `NA_byte` | missing value           |
+| `0b10` | `0b01`    | heterozygous            |
 
 """
 @inline function rawformat(snp::Integer)
@@ -36,11 +35,45 @@ Returns RAW format from the BED format integers:
 end
 
 # not sure if bitwise operations are faster
-const bytetoquarters = [[rawformat(snp1), rawformat(snp2),
-                         rawformat(snp3), rawformat(snp4)] for snp1 in 0b00:0b11,
-                                                               snp2 in 0b00:0b11,
-                                                               snp3 in 0b00:0b11,
-                                                               snp4 in 0b00:0b11]
+"""
+    const bytetoquarters::Vector{Vector{UInt8}}
+
+A constant array storing all 256 bytes split into 4 quarters. Note
+that the mapping is given by `bytetoquarters[BEDbyte + 1]` because of
+julia's 1-indexing.
+
+# Example
+```julia
+julia> BEDbyte = 0b11101001
+0xe9
+julia> BEDMatrices.bytetoquarters[BEDbyte + 1]
+4-element Array{UInt8,1}:
+ 0x03
+ 0x01
+ 0x01
+ 0x00
+```
+
+This can be understood as breaking the byte into quarters, in reverse
+order: `0b01`, `0b10`, `0b10`, `0b11`, and then changing from BED
+format to `rawformat` with `0x03` representing missing value.
+
+"""
+const bytetoquarters = [[rawformat(snp1), rawformat(snp2), rawformat(snp3), rawformat(snp4)] for
+                        snp4 in 0b00:0b11 for
+                        snp3 in 0b00:0b11 for
+                        snp2 in 0b00:0b11 for
+                        snp1 in 0b00:0b11]
+
+function breakbyte(byte::UInt8)
+    @inbounds quarters = bytetoquarters[byte + 1]
+    return quarters
+end
+
+function breakbyte!(list::AbstractVector{UInt8}, byte::UInt8)
+    @inbounds copy!(list, breakbyte(byte))
+    list
+end
 
 # Approach from Quantgen/BEDMatrix: shift by 2(n - 1) and then mask
 # result.
@@ -50,20 +83,12 @@ const bytetoquarters = [[rawformat(snp1), rawformat(snp2),
 """
     quarter(byte::UInt8, n::Integer)
 
-Returns the RAW-formatted `n`th quarter of `byte`
+Returns the RAW-formatted `n`th quarter of `byte`, equivalent to
+`breakbyte(byte)[n]`.
 
 """
 quarter(byte::UInt8, n::Integer) = rawformat((byte >> 2(n - 1)) & 0b00000011)
 
-function breakbyte(byte::UInt8)
-    @inbounds quarters = bytetoquarters[byte + 1]
-    return quarters
-end
-
-function breakbyte!(list::AbstractVector{UInt8}, byte::UInt8)
-    @inbounds copy!(list, breakbyte(byte))
-    nothing
-end
 
 function BEDsize(filebase::AbstractString)
     famfile, bimfile = filebase*".fam", filebase*".bim"
@@ -74,12 +99,14 @@ function BEDsize(filebase::AbstractString)
     return n, p
 end
 
+
 checkmagic(bytes::Vector{UInt8}) = (bytes[1:2] == plinkmagic || error("Bad magic"))
 
 function checkmagic(bedstream::IO)
     seekstart(bedstream)
     return checkmagic(read(bedstream, 2))
 end
+
 
 BEDmode(byte::UInt8) = modes[byte]
 
@@ -94,7 +121,7 @@ BEDmode(bytevector::Vector{UInt8}) = BEDmode(bytevector[3])
 ######################### Reading .bed into a Matrix #########################
 
 function BEDintomatrix{T<:Real}(bedfilename::AbstractString, ::Type{T}=UInt8, n::Integer=0, p::Integer=0; use_mmap=true)
-    n == p == 0 && !endswith(bedfilename, ".bed") && error("need .bed file extension dimensions n and p")
+    n == p == 0 && !endswith(bedfilename, ".bed") && error("Need .bed file extension or dimensions n and p provided")
     if n == p == 0
         filebase = join((split(bedfilename, '.')[1:(end - 1)]), '.')
         n, p = BEDsize(filebase)
@@ -130,7 +157,7 @@ function BEDintomatrix!{T<:Real}(A::AbstractMatrix{T}, bedvector::Vector{UInt8})
         unsafe_copybytestosnps!(fourquarters, A, bedvector, byteheight*(col - 1) + 3 + 1, 1, byteheight*col + 3 + 1, quarterstop, n*(col - 1) + 1)
     end
 
-    nothing
+    return A
 end
 
 function BEDintomatrix!{T<:Real}(A::AbstractMatrix{T}, bedstream::IO)
@@ -145,20 +172,21 @@ function BEDintomatrix!{T<:Real}(A::AbstractMatrix{T}, bedstream::IO)
         unsafe_copybytestosnps!(fourquarters, A, bytecol, 1, 1, bytestop, quarterstop, n*(col - 1) + 1)
     end
 
-    nothing
+    return A
 end
+
 
 """
     unsafe_copybytestosnps!(fourquarters::Vector{UInt8}, snparray::AbstractArray, bytearray::AbstractArray{UInt8}, bytestart::Integer, quarterstart::Integer, bytestop::Integer, quarterstop::Integer, deststart::Integer=1)
 
-Fills `snparray[deststart:(deststart + 4*(bytestop - bytestart) + (quarterstop - quarterstart))]` 
+Fills `snparray[deststart:(deststart + 4*(bytestop - bytestart) + (quarterstop - quarterstart))]`
 with snps starting with the `quarterstart`th snp in the `bytestart`th
 byte, and in obvious notation ending with `quarterstop` and
 `bytestop`.  Currently only supports unit stride for both `snparray`
 and `bytearray`, since at present there is no compelling use-case
 involving non-unit strides.
 
-Utility function used by more front facing functions. [Re]-uses
+Utility function used by more front facing functions. (Re)-uses
 `fourquarters = Vector{UInt8}(4)` to temporarily store single byte
 data.
 
@@ -199,8 +227,9 @@ function unsafe_copybytestosnps!(fourquarters::Vector{UInt8}, snparray::Abstract
         end
     end
 
-    nothing
+    return snparray
 end
+
 
 ######################### BEDMatrix type #########################
 # See implementation of BitArray for inspiration julia/base/bitarray.jl
@@ -247,7 +276,10 @@ immutable BEDMatrix{T<:Real, S<:AbstractMatrix} <: DenseArray{T, 2}
     end
 end
 
-function BEDMatrix(filebase::AbstractString, U::DataType=UInt8)
+function BEDMatrix(bedfilename::AbstractString, U::DataType=UInt8)
+    !endswith(bedfilename, ".bed") && error("File does not have .bed extension")
+
+    filebase = join(split(bedfilename, ".")[1:(end -1)], '.')
     n, p = BEDsize(filebase)
     byten = ceil(Int, n/4)
     lastrowheight = n - 4*(byten - 1)
@@ -278,7 +310,7 @@ Base.sizeof(B::BEDMatrix) = sizeof(B.X)
 
 # This is is the only getindex method we _need_, the other methods are
 # provided for better performance.
-# 
+#
 # TO DO: Should actually profile that we get the expected ≈4x speed
 # up.
 #
@@ -295,7 +327,7 @@ function unsafe_getindex{T, S}(B::BEDMatrix{T, S}, row::Integer, col::Integer)
 
     # @inbounds snp = convert(T, quarter(B.X[byterow, col], snpind))
     @inbounds snp = convert(T, breakbyte(B.X[byterow, col])[snpind])
-    snp
+    return snp
 end
 
 function Base.getindex(B::BEDMatrix, ::Colon, col::Integer)
@@ -354,4 +386,3 @@ end
 ## hcat, vcat -- LinkedMatrix?
 
 ## write to other formats?
-
