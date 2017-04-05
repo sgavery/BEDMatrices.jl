@@ -253,33 +253,28 @@ immutable BEDMatrix{T<:Real, S<:AbstractMatrix} <: DenseArray{T, 2}
     n::Int
     p::Int
     X::S
-    # path::String
+    path::String
     # colnames::Vector{String}
     # rownames::Vector{String}
 
     _byteheight::Int  # number of bytes in each column
     _lastrowSNPheight::Int  # number of SNPs in last byte of each column ∈ (1, 2, 3, 4)
 
-    function BEDMatrix(n::Integer, p::Integer, X::AbstractMatrix{UInt8})
-        if n < 1 || p < 1
-            error("n and p must be positive")
-        end
-
+    function BEDMatrix(n::Integer, p::Integer, X::AbstractMatrix{UInt8}, path::AbstractString)
         byten = ceil(Int, n/4)
         lastrowheight = n - 4*(byten - 1)
 
-        if size(X) != (byten, p)
-            error("Matrix dimensions $(size(X)) do not agree with dimensions (n = $n, p = $p)")
-        end
+        size(X) == (byten, p) || throw(DimensionMismatch("Matrix dimensions $(size(X)) do not agree with supplied BED dimensions (n = $n, p = $p)"))
 
-        return new(n, p, X, byten, lastrowheight)
+        return new(n, p, X, path, byten, lastrowheight)
     end
 end
 
 function BEDMatrix(bedfilename::AbstractString, U::DataType=UInt8)
-    !endswith(bedfilename, ".bed") && error("File does not have .bed extension")
+    isfile(bedfilename) || error("Cannot find file \"$bedfilename\"")
+    endswith(bedfilename, ".bed") || error("File does not have .bed extension")
 
-    filebase = join(split(bedfilename, ".")[1:(end -1)], '.')
+    filebase = splitext(bedfilename)[1]
     n, p = BEDsize(filebase)
     byten = ceil(Int, n/4)
     lastrowheight = n - 4*(byten - 1)
@@ -292,7 +287,7 @@ function BEDMatrix(bedfilename::AbstractString, U::DataType=UInt8)
     X = Mmap.mmap(bedfile, Matrix{UInt8}, (ceil(Int, n/4), p))
     close(bedfile)
 
-    return BEDMatrix{U, typeof(X)}(n, p, X)
+    return BEDMatrix{U, typeof(X)}(n, p, X, abspath(bedfilename))
 end
 
 Base.size(B::BEDMatrix) = (B.n, B.p)

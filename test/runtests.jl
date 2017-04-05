@@ -36,5 +36,7 @@ examplerows, examplecols, exampledata = readRAW(examplepath*rawfile)
     @testset "BEDMatrix" begin
         bed = BEDMatrices.BEDMatrix(examplepath*bedfile)
         @test bed[:, :] == exampledata
+
+        @test bed.path == abspath(examplepath*bedfile)
     end
 end
