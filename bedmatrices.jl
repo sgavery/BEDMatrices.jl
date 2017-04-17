@@ -254,19 +254,19 @@ immutable BEDMatrix{T<:Real, S<:AbstractMatrix} <: DenseArray{T, 2}
     p::Int
     X::S
     path::String
-    # colnames::Vector{String}
-    # rownames::Vector{String}
+    colnames::Vector{String}
+    rownames::Vector{String}
 
     _byteheight::Int  # number of bytes in each column
     _lastrowSNPheight::Int  # number of SNPs in last byte of each column ∈ (1, 2, 3, 4)
 
-    function BEDMatrix(n::Integer, p::Integer, X::AbstractMatrix{UInt8}, path::AbstractString)
+    function BEDMatrix(n::Integer, p::Integer, X::AbstractMatrix{UInt8}, path::AbstractString, colnames::AbstractVector, rownames::AbstractVector)
         byten = ceil(Int, n/4)
         lastrowheight = n - 4*(byten - 1)
 
         size(X) == (byten, p) || throw(DimensionMismatch("Matrix dimensions $(size(X)) do not agree with supplied BED dimensions (n = $n, p = $p)"))
 
-        return new(n, p, X, path, byten, lastrowheight)
+        return new(n, p, X, path, colnames, rownames, byten, lastrowheight)
     end
 end
 
@@ -275,20 +275,38 @@ function BEDMatrix(bedfilename::AbstractString, U::DataType=UInt8)
     endswith(bedfilename, ".bed") || error("File does not have .bed extension")
 
     filebase = splitext(bedfilename)[1]
-    n, p = BEDsize(filebase)
-    byten = ceil(Int, n/4)
-    lastrowheight = n - 4*(byten - 1)
+    rownames = readrownames(filebase*".fam")
+    colnames = readcolnames(filebase*".bim")
+    n, p = length(rownames), length(colnames)
 
-    bedfile = open(filebase*".bed", "r")
-    checkmagic(bedfile)
-    if BEDmode(bedfile) != :SNPmajor
-        error("SNPminor mode not supported")
+    X = open(filebase*".bed", "r") do bedfile
+        checkmagic(bedfile)
+        if BEDmode(bedfile) != :SNPmajor
+            error("SNPminor mode not supported")
+        end
+
+        Mmap.mmap(bedfile, Matrix{UInt8}, (ceil(Int, n/4), p))
     end
-    X = Mmap.mmap(bedfile, Matrix{UInt8}, (ceil(Int, n/4), p))
-    close(bedfile)
 
-    return BEDMatrix{U, typeof(X)}(n, p, X, abspath(bedfilename))
+    return BEDMatrix{U, typeof(X)}(n, p, X, abspath(bedfilename), colnames, rownames)
 end
+
+function parsefamline(line)
+    fields = split(line)
+
+    (fields[1], fields[2], parse(Int, fields[3]), parse(Int, fields[4]), parse(Int, fields[5]), parse(Int, fields[6]))
+end
+
+famrowname(line) = join(split(line)[1:2], '_')
+
+readrownames(famfile::AbstractString) = map(famrowname, readlines(famfile))
+
+function bimcolname(line)
+    fields = split(line)
+    string(fields[2], '_', fields[5])
+end
+
+readcolnames(bimfile::AbstractString) = map(bimcolname, readlines(bimfile))
 
 Base.size(B::BEDMatrix) = (B.n, B.p)
 function Base.size(B::BEDMatrix, k::Integer)
@@ -301,14 +319,24 @@ Base.linearindexing{T<:BEDMatrix}(::Type{T}) = Base.LinearSlow()
 
 Base.sizeof(B::BEDMatrix) = sizeof(B.X)
 
+path(X::BEDMatrix) = X.path
+rownames(X::BEDMatrix) = X.rownames
+colnames(X::BEDMatrix) = X.colnames
+
+getrow(X::BEDMatrix, rowname::AbstractString) = findfirst(X.rownames, rowname)
+getcol(X::BEDMatrix, colname::AbstractString) = findfirst(X.colnames, colname)
+
+
 #################### Indexing ####################
 
+Base.getindex(B::BEDMatrix, rowname::AbstractString, col::Integer) = B[getrow(B, rowname), col]
+
+Base.getindex(B::BEDMatrix, row::Integer, colname::AbstractString) = B[row, getcol(B, colname)]
+
+Base.getindex(B::BEDMatrix, rowname::AbstractString, colname::AbstractString) = B[getrow(B, rowname), getcol(B, colname)]
+
 # This is is the only getindex method we _need_, the other methods are
-# provided for better performance.
-#
-# TO DO: Should actually profile that we get the expected ≈4x speed
-# up.
-#
+# provided for better performance, or convenience.
 function Base.getindex(B::BEDMatrix, row::Integer, col::Integer)
     @boundscheck checkbounds(B, row, col)
 
@@ -325,6 +353,8 @@ function unsafe_getindex{T, S}(B::BEDMatrix{T, S}, row::Integer, col::Integer)
     return snp
 end
 
+# TO DO: Should actually profile that we get the expected ≈4x speed
+# up.
 function Base.getindex(B::BEDMatrix, ::Colon, col::Integer)
     @boundscheck checkbounds(B, :, col)
 
@@ -363,7 +393,6 @@ end
 # :, crange::UnitRange?
 # rrange, crange?
 
-# Indexing by colname or rowname?
 
 ######################### Other stuff #########################
 
@@ -381,3 +410,5 @@ end
 ## hcat, vcat -- LinkedMatrix?
 
 ## write to other formats?
+
+# Base.show() to display NA_byte as NA
