@@ -78,7 +78,7 @@ end
 # Approach from Quantgen/BEDMatrix: shift by 2(n - 1) and then mask
 # result.
 #
-# Performance-wise there does not seem to be, a clear advantage of one
+# Performance-wise, there does not seem to be a clear advantage of one
 # approach over the other.
 """
     quarter(byte::UInt8, n::Integer)
@@ -378,7 +378,6 @@ end
 function unsafe_getrowrange{T, S}(B::BEDMatrix{T, S}, rrange::UnitRange, col::Integer)
     vector = Vector{T}(length(rrange))
     fourquarters = Vector{UInt8}(4)
-    startoffset = 0
 
     bytestart = B._byteheight*(col - 1) + (rrange.start - 1) >> 2 + 1
     quarterstart = (rrange.start - 1) & 3 + 1
