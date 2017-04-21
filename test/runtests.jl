@@ -124,16 +124,20 @@ end
     @testset "arrays" begin
         for cvec in colarrays
             cnames = [examplecols[c] for c in cvec]
-            @test_broken bed[11, cnames] == exampledata[11, cvec]
+            @test bed[11, cnames] == exampledata[11, cvec]
+            @test bed[:, cnames] == exampledata[:, cvec]
+            @test bed[2:end, cnames] == exampledata[2:end, cvec]
 
             for rvec in rowarrays
                 rnames = [examplerows[r] for r in rvec]
-                @test_broken bed[rnames, cnames] == exampledata[rvec, cvec]
+                @test bed[rnames, cnames] == exampledata[rvec, cvec]
             end
         end
         for rvec in rowarrays
             rnames = [examplerows[r] for r in rvec]
-            @test_broken bed[rnames, 11] == exampledata[rvec, 11]
+            @test bed[rnames, 11] == exampledata[rvec, 11]
+            @test bed[rnames, :] == exampledata[rvec, :]
+            @test bed[rnames, 2:end] == exampledata[rvec, 2:end]
         end
     end
 end

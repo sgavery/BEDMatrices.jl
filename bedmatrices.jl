@@ -265,6 +265,8 @@ immutable BEDMatrix{T<:Real, S<:AbstractMatrix} <: DenseArray{T, 2}
         lastrowheight = n - 4*(byten - 1)
 
         size(X) == (byten, p) || throw(DimensionMismatch("Matrix dimensions $(size(X)) do not agree with supplied BED dimensions (n = $n, p = $p)"))
+        length(colnames) == p || throw(DimensionMismatch("colnames has incorrect length"))
+        length(rownames) == n || throw(DimensionMismatch("rownames has incorrect length"))
 
         return new(n, p, X, path, colnames, rownames, byten, lastrowheight)
     end
@@ -329,6 +331,11 @@ getcol(X::BEDMatrix, colname::AbstractString) = findfirst(X.colnames, colname)
 
 #################### Indexing ####################
 
+Base.getindex{T<:AbstractString}(B::BEDMatrix, rownames::AbstractVector{T}, col) = B[map(name -> getrow(B, name), rownames), col]
+Base.getindex{T<:AbstractString}(B::BEDMatrix, row, colnames::AbstractVector{T}) = B[row, map(name -> getcol(B, name), colnames)]
+Base.getindex{T<:AbstractString, S<:AbstractString}(B::BEDMatrix, rownames::AbstractVector{S}, colnames::AbstractVector{T}) = B[map(name -> getrow(B, name), rownames), map(name -> getcol(B, name), colnames)]
+
+
 Base.getindex(B::BEDMatrix, rowname::AbstractString, col::Integer) = B[getrow(B, rowname), col]
 
 Base.getindex(B::BEDMatrix, row::Integer, colname::AbstractString) = B[row, getcol(B, colname)]
@@ -353,8 +360,6 @@ function unsafe_getindex{T, S}(B::BEDMatrix{T, S}, row::Integer, col::Integer)
     return snp
 end
 
-# TO DO: Should actually profile that we get the expected ≈4x speed
-# up.
 function Base.getindex(B::BEDMatrix, ::Colon, col::Integer)
     @boundscheck checkbounds(B, :, col)
 
