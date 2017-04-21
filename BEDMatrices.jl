@@ -3,6 +3,7 @@ __precompile__()
 module BEDMatrices
 include("bedmatrices.jl")
 
-# export ...
+export BEDintomatrix, BEDintomatrix!,
+    BEDMatrix, path, rownames, colnames
 
 end
