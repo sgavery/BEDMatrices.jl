@@ -70,9 +70,11 @@ function breakbyte(byte::UInt8)
     return quarters
 end
 
-function breakbyte!(list::AbstractVector{UInt8}, byte::UInt8)
-    @inbounds copy!(list, breakbyte(byte))
-    list
+function breakbyte!(vector::AbstractArray, byte::UInt8, vecstart=1, quarterstart=1, quarterstop=4)
+    @inbounds copy!(vector, vecstart,
+                    breakbyte(byte), quarterstart,
+                    quarterstop - quarterstart + 1)
+    vector
 end
 
 # Approach from Quantgen/BEDMatrix: shift by 2(n - 1) and then mask
@@ -152,9 +154,8 @@ function BEDintomatrix!{T<:Real}(A::AbstractMatrix{T}, bedvector::Vector{UInt8})
     byteheight = ceil(Int, n/4)
     quarterstop = n - 4*(byteheight - 1)
 
-    fourquarters = Vector{UInt8}(4)
     @inbounds for col in 1:p
-        unsafe_copybytestosnps!(fourquarters, A, bedvector, byteheight*(col - 1) + 3 + 1, 1, byteheight*col + 3 + 1, quarterstop, n*(col - 1) + 1)
+        unsafe_copybytestosnps!(A, bedvector, byteheight*(col - 1) + 3 + 1, 1, byteheight*col + 3, quarterstop, n*(col - 1) + 1)
     end
 
     return A
@@ -166,10 +167,9 @@ function BEDintomatrix!{T<:Real}(A::AbstractMatrix{T}, bedstream::IO)
     quarterstop = n - 4*(bytestop - 1)
 
     bytecol = Vector{UInt8}(bytestop)
-    fourquarters = Vector{UInt8}(4)
     @inbounds for col in 1:p
         read!(bedstream, bytecol)
-        unsafe_copybytestosnps!(fourquarters, A, bytecol, 1, 1, bytestop, quarterstop, n*(col - 1) + 1)
+        unsafe_copybytestosnps!(A, bytecol, 1, 1, bytestop, quarterstop, n*(col - 1) + 1)
     end
 
     return A
@@ -177,7 +177,7 @@ end
 
 
 """
-    unsafe_copybytestosnps!(fourquarters::Vector{UInt8}, snparray::AbstractArray, bytearray::AbstractArray{UInt8}, bytestart::Integer, quarterstart::Integer, bytestop::Integer, quarterstop::Integer, deststart::Integer=1)
+    unsafe_copybytestosnps!(snparray::AbstractArray, bytearray::AbstractArray{UInt8}, bytestart::Integer, quarterstart::Integer, bytestop::Integer, quarterstop::Integer, deststart::Integer=1)
 
 Fills `snparray[deststart:(deststart + 4*(bytestop - bytestart) + (quarterstop - quarterstart))]`
 with snps starting with the `quarterstart`th snp in the `bytestart`th
@@ -186,21 +186,15 @@ byte, and in obvious notation ending with `quarterstop` and
 and `bytearray`, since at present there is no compelling use-case
 involving non-unit strides.
 
-Utility function used by more front facing functions. (Re)-uses
-`fourquarters = Vector{UInt8}(4)` to temporarily store single byte
-data.
+Utility function used by more front facing functions.
 
 """
-function unsafe_copybytestosnps!(fourquarters::Vector{UInt8}, snparray::AbstractArray, bytearray::AbstractArray{UInt8},
-                                 bytestart::Integer, quarterstart::Integer, bytestop::Integer, quarterstop::Integer,
-                                 deststart::Integer=1)
+function unsafe_copybytestosnps!(snparray::AbstractArray, bytearray::AbstractArray{UInt8},
+                                 bytestart::Integer, quarterstart::Integer, bytestop::Integer, quarterstop::Integer, deststart::Integer=1)
     # First byte
     if quarterstart != 1
-        @inbounds breakbyte!(fourquarters, bytearray[bytestart])
         stop = bytestart == bytestop ? quarterstop : 4
-        @simd for J in quarterstart:stop
-            @inbounds snparray[deststart + J - quarterstart] = fourquarters[J]
-        end
+        @inbounds breakbyte!(snparray, bytearray[bytestart], deststart, quarterstart, stop)
         deststart += stop - quarterstart + 1
         bytestart += 1
     end
@@ -208,27 +202,19 @@ function unsafe_copybytestosnps!(fourquarters::Vector{UInt8}, snparray::Abstract
     if bytestart <= bytestop
         # Last byte
         if quarterstop != 4
-            @inbounds breakbyte!(fourquarters, bytearray[bytestop])
-            @simd for J in 1:quarterstop
-                @inbounds snparray[deststart + 4*(bytestop - bytestart) + J - 1] = fourquarters[J]
-            end
+            @inbounds breakbyte!(snparray, bytearray[bytestop], deststart + 4*(bytestop - bytestart), 1, quarterstop)
             bytestop -= 1
         end
 
         # Main course
-        # @simd must be innermost loop according to docs,
-        # hence the manually unrolled loop.
         @simd for bytej in bytestart:bytestop
-            @inbounds breakbyte!(fourquarters, bytearray[bytej])
-            @inbounds snparray[deststart + 4*(bytej - bytestart)] = fourquarters[1]
-            @inbounds snparray[deststart + 4*(bytej - bytestart) + 1] = fourquarters[2]
-            @inbounds snparray[deststart + 4*(bytej - bytestart) + 2] = fourquarters[3]
-            @inbounds snparray[deststart + 4*(bytej - bytestart) + 3] = fourquarters[4]
+            @inbounds breakbyte!(snparray, bytearray[bytej], deststart + 4*(bytej - bytestart))
         end
     end
 
     return snparray
 end
+
 
 
 ######################### BEDMatrix type #########################
@@ -368,9 +354,8 @@ end
 
 function unsafe_getcol{T, S}(B::BEDMatrix{T, S}, col::Integer)
     column = Vector{T}(B.n)
-    fourquarters = Vector{UInt8}(4)
 
-    unsafe_copybytestosnps!(fourquarters, column, B.X, B._byteheight*(col - 1) + 1, 1, B._byteheight*col + 1, B._lastrowSNPheight, 1)
+    unsafe_copybytestosnps!(column, B.X, B._byteheight*(col - 1) + 1, 1, B._byteheight*col, B._lastrowSNPheight, 1)
     return column
 end
 
@@ -382,14 +367,13 @@ end
 
 function unsafe_getrowrange{T, S}(B::BEDMatrix{T, S}, rrange::UnitRange, col::Integer)
     vector = Vector{T}(length(rrange))
-    fourquarters = Vector{UInt8}(4)
 
     bytestart = B._byteheight*(col - 1) + (rrange.start - 1) >> 2 + 1
     quarterstart = (rrange.start - 1) & 3 + 1
     bytestop = B._byteheight*(col - 1) + (rrange.stop - 1) >> 2 + 1
     quarterstop = (rrange.stop - 1) & 3 + 1
 
-    unsafe_copybytestosnps!(fourquarters, vector, B.X, bytestart, quarterstart, bytestop, quarterstop, 1)
+    unsafe_copybytestosnps!(vector, B.X, bytestart, quarterstart, bytestop, quarterstop, 1)
     return vector
 end
 
