@@ -299,7 +299,7 @@ end
 `Matrix{T}`-like representation of data in a literal BED matrix of
 type `S`. Intended usage is for the BED matrix `X::S` to be memory
 mapping of .bed file. That is `X` should be in compact, 4 SNPs per
-byte, format with "ragged bottom".
+byte, format with padded columns.
 
 ## Fields:
     n::Int
@@ -457,10 +457,26 @@ function Base.getindex(B::BEDMatrix, ::Colon, col::Integer)
     unsafe_getcol(B, col)
 end
 
+function Base.getindex{T, S, K<:Integer}(B::BEDMatrix{T, S}, ::Colon, cols::AbstractVector{K})
+    @boundscheck checkbounds(B, :, cols)
+
+    matrix = Matrix{T}(B.n, length(cols))
+
+    for (cidx, col) in enumerate(cols)
+        unsafe_getcol!(matrix, B, col, (cidx - 1)*B.n + 1)
+    end
+    return matrix
+end
+
 function unsafe_getcol{T, S}(B::BEDMatrix{T, S}, col::Integer)
     column = Vector{T}(B.n)
 
-    unsafe_copybytestosnps!(column, B.X, B._byteheight*(col - 1) + 1, 1, B._byteheight*col, B._lastrowSNPheight, 1)
+    unsafe_getcol!(column, B, col)
+    return column
+end
+
+function unsafe_getcol!{T, S}(column::AbstractArray{T}, B::BEDMatrix{T, S}, col::Integer, deststart=1)
+    unsafe_copybytestosnps!(column, B.X, B._byteheight*(col - 1) + 1, 1, B._byteheight*col, B._lastrowSNPheight, deststart)
     return column
 end
 
@@ -470,21 +486,31 @@ function Base.getindex(B::BEDMatrix, rrange::UnitRange, col::Integer)
     unsafe_getrowrange(B, rrange, col)
 end
 
+function Base.getindex{T, S, K <: Integer}(B::BEDMatrix{T, S}, rrange::UnitRange, cols::AbstractVector{K})
+    @boundscheck checkbounds(B, rrange, cols)
+
+    matrix = Matrix{T}(length(rrange), length(cols))
+    for (cidx, col) in enumerate(cols)
+        unsafe_getrowrange!(matrix, B, rrange, col, (cidx - 1)*length(rrange) + 1)
+    end
+    return matrix
+end
+
 function unsafe_getrowrange{T, S}(B::BEDMatrix{T, S}, rrange::UnitRange, col::Integer)
     vector = Vector{T}(length(rrange))
+    unsafe_getrowrange!(vector, B, rrange, col)
+    return vector
+end
 
+function unsafe_getrowrange!{T, S}(vector::AbstractArray{T}, B::BEDMatrix{T, S}, rrange::UnitRange, col::Integer, deststart=1)
     bytestart = B._byteheight*(col - 1) + (rrange.start - 1) >> 2 + 1
     quarterstart = (rrange.start - 1) & 3 + 1
     bytestop = B._byteheight*(col - 1) + (rrange.stop - 1) >> 2 + 1
     quarterstop = (rrange.stop - 1) & 3 + 1
 
-    unsafe_copybytestosnps!(vector, B.X, bytestart, quarterstart, bytestop, quarterstop, 1)
+    unsafe_copybytestosnps!(vector, B.X, bytestart, quarterstart, bytestop, quarterstop, deststart)
     return vector
 end
-
-# do we also need/want to implement the following:
-# :, crange::UnitRange?
-# rrange, crange?
 
 
 ######################### Other stuff #########################
