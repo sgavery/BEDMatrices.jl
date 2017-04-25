@@ -11,7 +11,7 @@ package [BEDMatrix](https://github.com/QuantGen/BEDMatrix).
 Features
 --------
 
-Example/Basic Usage
+Examples/Basic Usage
 -------------------
 
 If we have a .bed file, "example.bed" with accompanying "example.fam"
@@ -20,7 +20,9 @@ load and create a `BEDMatrix` object as follows:
 
 ```julia
 julia> include("BEDMatrices.jl");
+
 julia> using BEDMatrices
+
 julia> bed = BEDMatrix("example.bed");
 ```
 
@@ -48,6 +50,7 @@ define `bed` as follows
 
 ```julia
 julia> bed = BEDMatrix("example.bed", Float64);
+
 julia> bed[2:12, 1:10]
 11×10 Array{Float64,2}:
  1.0  1.0  1.0  1.0  3.0  2.0  2.0  2.0  1.0  1.0
@@ -72,10 +75,11 @@ julia> BEDMatrices.NA_byte
 0x03
 ```
 
-The `BEDMatrix` may be created with different behavior
+The `BEDMatrix` may be created with different NA behavior
 
 ```julia
 julia> bed = BEDMatrix("test/data/example.bed", Float64, NaN);
+
 julia> bed[2:12, 1:10]
 11×10 Array{Float64,2}:
  1.0  1.0  1.0  1.0  NaN    2.0  2.0  2.0    1.0  1.0
@@ -89,17 +93,42 @@ julia> bed[2:12, 1:10]
  1.0  2.0  1.0  1.0    2.0  0.0  1.0  1.0    0.0  1.0
  2.0  1.0  1.0  0.0    1.0  0.0  1.0  0.0    2.0  0.0
  2.0  0.0  0.0  1.0    1.0  2.0  0.0  1.0    0.0  1.0
+
 julia> NArep(bed)
 NaN
 ```
 
-where `NArep` returns the representation of missing values.
+where `NArep` returns the representation of missing values. One can
+also work with `Nullable`s in this way:
+
+```julia
+julia> bed = BEDMatrix("test/data/example.bed", Nullable{UInt8}, Nullable{UInt8}());
+
+julia> bed[2:12, 1:10]
+11×10 Array{Nullable{UInt8},2}:
+ 0x01  0x01  0x01  0x01  #NULL  0x02  0x02  0x02  0x01   0x01
+ 0x01  0x00  0x00  0x02  0x00   0x00  0x01  0x02  0x00   0x01
+ 0x02  0x00  0x00  0x00  0x01   0x00  0x02  0x01  0x01   0x02
+ 0x00  0x01  0x00  0x00  0x00   0x01  0x01  0x00  0x01   0x00
+ 0x01  0x01  0x01  0x00  0x00   0x00  0x00  0x02  0x01   0x01
+ 0x01  0x00  0x02  0x00  #NULL  0x00  0x01  0x02  #NULL  0x00
+ 0x01  0x02  0x02  0x00  0x01   0x02  0x01  0x00  0x02   0x00
+ 0x01  0x01  0x00  0x01  0x00   0x01  0x01  0x01  0x00   0x01
+ 0x01  0x02  0x01  0x01  0x02   0x00  0x01  0x01  0x00   0x01
+ 0x02  0x01  0x01  0x00  0x01   0x00  0x01  0x00  0x02   0x00
+ 0x02  0x00  0x00  0x01  0x01   0x02  0x00  0x01  0x00   0x01
+```
+
+Note that it may be preferable to work with `NullableArray`s instead
+of the above slicings for computationally intensive calculations. We
+leave that to the user or another module to implement.
 
 The `eltype` is exposed as the first parameter:
 
 ```julia
 julia> typeof(bed)
 BEDMatrices.BEDMatrix{Float64,Array{UInt8,2}}
+
 julia> eltype(bed)
 Float64
 ```
@@ -107,10 +136,11 @@ Float64
 The second parameter `Array{UInt8,2}` refers to the internal .bed
 representation, and will generally be the same as above.
 
-More Documentation
-------------------
+One can also get data about the `BEDMatrix` with various functions:
 
 ```julia
+julia> bed = BEDMatrix("test/data/example.bed", Float64, NaN);
+
 julia> path(bed)
 "[...]/example.bed"
 
