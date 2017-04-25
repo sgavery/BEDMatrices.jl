@@ -13,6 +13,6 @@ module BEDMatrices
 include("bedmatrices.jl")
 
 export BEDintomatrix, BEDintomatrix!,
-    BEDMatrix, path, rownames, colnames
+    BEDMatrix, path, rownames, colnames, NArep
 
 end

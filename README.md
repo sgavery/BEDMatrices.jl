@@ -20,7 +20,8 @@ load and create a `BEDMatrix` object as follows:
 
 ```julia
 julia> include("BEDMatrices.jl");
-julia> bed = BEDMatrices.BEDMatrix("example.bed");
+julia> using BEDMatrices
+julia> bed = BEDMatrix("example.bed");
 ```
 
 For most purposes, we may now treat `bed` as an ordinary matrix. For
@@ -46,7 +47,7 @@ If you prefer to use a different numeric type like `Float64`, you can
 define `bed` as follows
 
 ```julia
-julia> bed = BEDMatrices.BEDMatrix("example.bed", Float64);
+julia> bed = BEDMatrix("example.bed", Float64);
 julia> bed[2:12, 1:10]
 11×10 Array{Float64,2}:
  1.0  1.0  1.0  1.0  3.0  2.0  2.0  2.0  1.0  1.0
@@ -63,18 +64,44 @@ julia> bed[2:12, 1:10]
 ```
 
 Note that `3.0` (or `0x03` in the previous example) currently
-indicates missing value; this will likely change. This is set by
-`BEDMatrices.NA_byte`:
+indicates the default missing value; this will likely change. This is
+set by `BEDMatrices.NA_byte`:
+
 ```julia
 julia> BEDMatrices.NA_byte
 0x03
 ```
 
-The return type is exposed as the first parameter:
+The `BEDMatrix` may be created with different behavior
 
+```julia
+julia> bed = BEDMatrix("test/data/example.bed", Float64, NaN);
+julia> bed[2:12, 1:10]
+11×10 Array{Float64,2}:
+ 1.0  1.0  1.0  1.0  NaN    2.0  2.0  2.0    1.0  1.0
+ 1.0  0.0  0.0  2.0    0.0  0.0  1.0  2.0    0.0  1.0
+ 2.0  0.0  0.0  0.0    1.0  0.0  2.0  1.0    1.0  2.0
+ 0.0  1.0  0.0  0.0    0.0  1.0  1.0  0.0    1.0  0.0
+ 1.0  1.0  1.0  0.0    0.0  0.0  0.0  2.0    1.0  1.0
+ 1.0  0.0  2.0  0.0  NaN    0.0  1.0  2.0  NaN    0.0
+ 1.0  2.0  2.0  0.0    1.0  2.0  1.0  0.0    2.0  0.0
+ 1.0  1.0  0.0  1.0    0.0  1.0  1.0  1.0    0.0  1.0
+ 1.0  2.0  1.0  1.0    2.0  0.0  1.0  1.0    0.0  1.0
+ 2.0  1.0  1.0  0.0    1.0  0.0  1.0  0.0    2.0  0.0
+ 2.0  0.0  0.0  1.0    1.0  2.0  0.0  1.0    0.0  1.0
+julia> NArep(bed)
+NaN
 ```
+
+where `NArep` returns the representation of missing values.
+
+The `eltype` is exposed as the first parameter:
+
+```julia
 julia> typeof(bed)
 BEDMatrices.BEDMatrix{Float64,Array{UInt8,2}}
+julia> eltype(bed)
+Float64
 ```
 
 The second parameter `Array{UInt8,2}` refers to the internal .bed
@@ -82,6 +109,30 @@ representation, and will generally be the same as above.
 
 More Documentation
 ------------------
+
+```julia
+julia> path(bed)
+"[...]/example.bed"
+
+julia> rownames(bed)[12]
+"per11_per11"
+
+julia> bed["per11_per11", 11]
+0.0
+
+julia> colnames(bed)[11]
+"snp11_C"
+
+julia> bed["per11_per11", "snp11_C"]
+0.0
+
+julia> size(bed)
+(50,1000)
+
+julia> sizeof(bed)
+23448
+```
+
 
 BED format details
 ------------------
