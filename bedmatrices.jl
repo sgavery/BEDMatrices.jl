@@ -18,16 +18,16 @@ const NA_byte = 0b11  # not recommended, 0xff? 0x9?
 const quarterstohuman = (0b10, NA_byte, 0b01, 0b00)
 
 """
-    rawformat(snp::Integer)
+    rawformat(snp::Integer, quartermap=quarterstohuman)
 
 Returns RAW format from the BED format quarter-byte:
 
-| BED    | RAW       | Meaning                 |
-|:------ |:--------- |:----------------------- |
-| `0b00` | `0b10`    | homozygous minor allele |
-| `0b11` | `0b00`    | homozygous major allele |
-| `0b01` | `NA_byte` | missing value           |
-| `0b10` | `0b01`    | heterozygous            |
+| BED    | RAW (default) | general         | Meaning                 |
+|:------ |:------------- |:--------------- |:----------------------- |
+| `0b00` | `0b10`        | `quartermap[1]` | homozygous minor allele |
+| `0b11` | `0b00`        | `quartermap[2]` | homozygous major allele |
+| `0b01` | `NA_byte`     | `quartermap[3]` | missing value           |
+| `0b10` | `0b01`        | `quartermap[4]` | heterozygous            |
 
 """
 @inline function rawformat(snp::Integer, quartermap=quarterstohuman)
@@ -65,9 +65,10 @@ const bytetoquarters = [[rawformat(snp1), rawformat(snp2), rawformat(snp3), rawf
                         snp1 in 0b00:0b11]
 
 """
-    breakbyte(byte::UInt8)
+    breakbyte(byte::UInt8, bytemap=bytetoquarters)
 
-Return length-4 `Vector{UInt8}` of the RAW-formatted SNP quarters in `byte`.
+Return length-4 `Vector{UInt8}` of the RAW-formatted SNP quarters, as
+determined by `bytemap`, in `byte`.
 
 """
 function breakbyte(byte::UInt8, bytemap=bytetoquarters)
@@ -81,7 +82,7 @@ end
 # Performance-wise, there does not seem to be a clear advantage of one
 # approach over the other.
 """
-    quarter(byte::UInt8, n::Integer)
+    quarter(byte::UInt8, n::Integer, quartermap=quarterstohuman)
 
 Returns the RAW-formatted `n`th quarter of `byte`, equivalent to
 `breakbyte(byte)[n]`.
@@ -116,7 +117,7 @@ Determine if first two "magic" bytes match plink format. If not throws
 an error, else returns `true`.
 
 """
-checkmagic(bytes::Vector{UInt8}) = (bytes[1:2] == plinkmagic || error("Bad magic"))
+checkmagic(bytes::Vector{UInt8}) = (bytes[1:2] == plinkmagic || error("Bad magic: not a plink bed file"))
 
 function checkmagic(bedstream::IO)
     seekstart(bedstream)
@@ -143,10 +144,10 @@ BEDmode(bytevector::Vector{UInt8}) = BEDmode(bytevector[3])
 
 
 """
-    unsafe_breakbyte!(vector::AbstractArray, byte::UInt8, vecstart=1, quarterstart=1, quarterstop=4)
+    unsafe_breakbyte!(vector::AbstractArray, byte::UInt8, bytemap=bytetoquarters, vecstart=1, quarterstart=1, quarterstop=4)
 
 Fills `vector` starting at `vecstart` with the `quarterstart`th snp
-through the `quarterstop`th snp in `byte`.
+through the `quarterstop`th snp in `byte`, as determined by `bytemap`.
 
 ## (Unchecked) Constraints:
 * 1 <= `quarterstart` <= `quarterstop` <= 4
@@ -162,22 +163,28 @@ end
 
 
 """
-    unsafe_copybytestosnps!(snparray::AbstractArray, bytearray::AbstractArray{UInt8}, bytestart::Integer, quarterstart::Integer, bytestop::Integer, quarterstop::Integer, deststart::Integer=1)
+    unsafe_copybytestosnps!(snparray::AbstractArray, bytearray::AbstractArray{UInt8},
+                            bytestart::Integer, quarterstart::Integer,
+                            bytestop::Integer, quarterstop::Integer,
+                            deststart::Integer=1, bytemap=bytetoquarters)
 
 Fills `snparray[deststart:(deststart + num_snps)]` with snps, where
 
     num_snps = 4*(bytestop - bytestart) + (quarterstop - quarterstart) + 1
 
-The snps start with the `quarterstart`th snp in the `bytestart`th
-byte, and end with `quarterstop` and `bytestop`.  Currently only
-supports unit stride for both `snparray` and `bytearray`, since at
-present there is no compelling use-case involving non-unit strides.
+The SNPs start with the `quarterstart`th snp in the `bytestart`th
+byte, and end with `quarterstop` and `bytestop`.  The SNP
+representation is determined by the `bytemap`. Currently only supports
+unit stride for both `snparray` and `bytearray`, since at present
+there is no compelling use-case involving non-unit strides.
 
 Utility function used by more front facing functions.
 
 """
 function unsafe_copybytestosnps!(snparray::AbstractArray, bytearray::AbstractArray{UInt8},
-                                 bytestart::Integer, quarterstart::Integer, bytestop::Integer, quarterstop::Integer, deststart::Integer=1, bytemap=bytetoquarters)
+                                 bytestart::Integer, quarterstart::Integer,
+                                 bytestop::Integer, quarterstop::Integer,
+                                 deststart::Integer=1, bytemap=bytetoquarters)
     # First byte
     if quarterstart != 1
         stop = bytestart == bytestop ? quarterstop : 4
@@ -295,29 +302,6 @@ end
 # requires exposing the type as below. See discussion at
 # http://docs.julialang.org/en/stable/manual/performance-tips/#type-declarations
 
-"""
-    immutable BEDMatrix{T, S<:AbstractMatrix} <: DenseArray{T, 2}
-
-`Matrix{T}`-like representation of data in a literal BED matrix of
-type `S`. Intended usage is for the BED matrix `X::S` to be memory
-mapping of .bed file. That is `X` should be in compact, 4 SNPs per
-byte, format with padded columns.
-
-## Fields:
-    n::Int
-    p::Int
-    X::S
-    navalue::T
-
-    path::String
-    colnames::Vector{String}
-    rownames::Vector{String}
-
-    _byteheight::Int  # number of bytes in each column
-    _lastrowSNPheight::Int  # number of SNPs in last byte of each column ∈ (1, 2, 3, 4)
-    _bytemap::Vector{Vector{T}}
-
-"""
 immutable BEDMatrix{T, S<:AbstractMatrix} <: DenseArray{T, 2}
     n::Int
     p::Int
@@ -353,31 +337,102 @@ immutable BEDMatrix{T, S<:AbstractMatrix} <: DenseArray{T, 2}
 end
 
 """
-    BEDMatrix(bedfilename::AbstractString, U::DataType=UInt8, navalue=NA_byte)
+    BEDMatrix(bedfilename::AbstractString;
+              datatype::DataType=UInt8, nsamples::Integer=0, nSNPs::Integer=0, navalue=NA_byte
+              famfile::AbstractString="", bimfile::AbstractString="")
 
-Create a `BEDMatrix` of type `U` using memory mapping of BED file,
-`bedfilename`. Use `navalue` for missing values.
+Create a `BEDMatrix` of type `datatype` using memory mapping of BED
+file, `bedfilename`. Use `navalue` for missing values. `famfile` and
+`bimfile` are only required if the .fam and .bim file are not in same
+location as or do not share the same base name as the
+`bedfilename`. `nsamples` and `nSNPs` are only used if .bim and .fam
+file cannot be found and are not provided; in which case the
+rownames/colnames will be generic.
+
+`convert(datatype, x)` must work for `x` in `[0b00, 0b01, 0b10, navalue]`.
+
+## Examples
+```julia
+julia> bed = BEDMatrix("test/data/example.bed");
+
+julia> bed[1:5, 1:5]
+5×5 Array{UInt8,2}:
+ 0x00  0x01  0x01  0x01  0x00
+ 0x01  0x01  0x01  0x01  0x03
+ 0x01  0x00  0x00  0x02  0x00
+ 0x02  0x00  0x00  0x00  0x01
+ 0x00  0x01  0x00  0x00  0x00
+
+julia> bed = BEDMatrix("test/data/example", datatype=Nullable{Int}, navalue=Nullable{Int}());
+
+julia> bed[1:5, 1:5]
+5×5 Array{Nullable{Int64},2}:
+ 0  1  1  1  0    
+ 1  1  1  1  #NULL
+ 1  0  0  2  0    
+ 2  0  0  0  1    
+ 0  1  0  0  0    
+
+julia> bed = BEDMatrix("test/data/example.bed", datatype=Float64, navalue=NaN);
+
+julia> bed[1:5, 1:5]
+5×5 Array{Float64,2}:
+ 0.0  1.0  1.0  1.0    0.0
+ 1.0  1.0  1.0  1.0  NaN  
+ 1.0  0.0  0.0  2.0    0.0
+ 2.0  0.0  0.0  0.0    1.0
+ 0.0  1.0  0.0  0.0    0.0
+
+julia> bed = BEDMatrix("test/data/example", famfile="badfilename", nsamples=50);
+
+julia> rownames(bed)[1:5]
+5-element Array{String,1}:
+ "sample_1"
+ "sample_2"
+ "sample_3"
+ "sample_4"
+ "sample_5"
+```
 
 """
-function BEDMatrix(bedfilename::AbstractString, U::DataType=UInt8, navalue=NA_byte)
-    isfile(bedfilename) || error("Cannot find file \"$bedfilename\"")
-    endswith(bedfilename, ".bed") || error("File does not have .bed extension")
-
+function BEDMatrix(bedfilename::AbstractString;
+                   datatype::DataType=UInt8, nsamples::Integer=0, nSNPs::Integer=0, navalue=NA_byte,
+                   famfile::AbstractString="", bimfile::AbstractString="")
+    if !isfile(bedfilename)
+        isfile(bedfilename*".bed") || error("Cannot find file \"$bedfilename\"")
+        bedfilename = bedfilename*".bed"
+    end
     filebase = splitext(bedfilename)[1]
-    rownames = readrownames(filebase*".fam")
-    colnames = readcolnames(filebase*".bim")
+
+    famfile = famfile == "" ? filebase*".fam" : famfile
+    if isfile(famfile)
+        rownames = readrownames(famfile)
+    elseif nsamples > 0
+        rownames = [string("sample_", j) for j in 1:nsamples]
+    else
+        error("Cannot find file \"$famfile\" and nsamples not provided")
+    end
+
+    bimfile = bimfile == "" ? filebase*".bim" : bimfile
+    if isfile(bimfile)
+        colnames = readcolnames(bimfile)
+    elseif nSNPs > 0
+        colnames = [string("SNP_", j) for j in 1:nSNPs]
+    else
+        error("Cannot find file \"$bimfile\" and nSNPs not provided")
+    end
+
     n, p = length(rownames), length(colnames)
 
     X = open(filebase*".bed", "r") do bedfile
         checkmagic(bedfile)
-        if BEDmode(bedfile) != :SNPmajor
-            error("SNPminor mode not supported")
-        end
+        BEDmode(bedfile) == :SNPmajor || error("Old-style SNP-minor mode bed files not supported. Use plink to convert to SNP-major format")
 
         Mmap.mmap(bedfile, Matrix{UInt8}, (ceil(Int, n/4), p))
     end
 
-    return BEDMatrix{U, typeof(X)}(n, p, X, convert(U, navalue), abspath(bedfilename), colnames, rownames)
+    return BEDMatrix{datatype, typeof(X)}(n, p, X, convert(datatype, navalue),
+                                          abspath(bedfilename), colnames, rownames)
 end
 
 function parsefamline(line)
@@ -539,17 +594,9 @@ end
 
 ######################### Other stuff #########################
 
-# Some ideas from bitarray.jl
+# column iterator?
+# column reduce?
 
-## iterator ?
-# Base.start
-# Base.next
-# Base.done
-
-## map ?
-
-## filter
-
-## hcat, vcat -- LinkedMatrix?
+## hcat, vcat -- LinkedMatrix
 
 ## write to other formats?
