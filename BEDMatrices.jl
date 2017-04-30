@@ -10,7 +10,9 @@ documentation for more details.
 
 """
 module BEDMatrices
+include("constants.jl")
 include("bedmatrices.jl")
+include("coltools.jl")
 
 export BEDintomatrix, BEDintomatrix!,
     BEDMatrix, path, rownames, colnames, NArep

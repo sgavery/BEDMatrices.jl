@@ -1,6 +1,6 @@
 
 
-######################### Plink Constants #########################
+######################### Basic BED file tools #########################
 
 ## .bed file format ##################################################
 #
@@ -9,13 +9,6 @@
 # and https://www.cog-genomics.org/plink2/formats#bed
 #
 ######################################################################
-
-const plinkmagic = [0b0110_1100, 0b0001_1011]
-const modes = Dict(0b0000_0001 => :SNPmajor,
-                   0b0000_0000 => :SNPminor)
-
-const NA_byte = 0b11  # not recommended, 0xff? 0x9?
-const quarterstohuman = (0b10, NA_byte, 0b01, 0b00)
 
 """
     rawformat(snp::Integer, quartermap=quarterstohuman)
@@ -35,36 +28,6 @@ Returns RAW format from the BED format quarter-byte:
 end
 
 """
-    const bytetoquarters::Vector{Vector{UInt8}}
-
-A constant array storing all 256 bytes split into 4 quarters. Note
-that the mapping is given by `bytetoquarters[BEDbyte + 1]` because of
-julia's 1-indexing.
-
-# Example
-```julia
-julia> BEDbyte = 0b11101001
-0xe9
-julia> BEDMatrices.bytetoquarters[BEDbyte + 1]
-4-element Array{UInt8,1}:
- 0x03
- 0x01
- 0x01
- 0x00
-```
-
-This can be understood as breaking the byte into quarters, in reverse
-order: `0b01`, `0b10`, `0b10`, `0b11`, and then changing from BED
-format to `rawformat` with `0x03` representing missing value.
-
-"""
-const bytetoquarters = [[rawformat(snp1), rawformat(snp2), rawformat(snp3), rawformat(snp4)] for
-                        snp4 in 0b00:0b11 for
-                        snp3 in 0b00:0b11 for
-                        snp2 in 0b00:0b11 for
-                        snp1 in 0b00:0b11]
-
-"""
     breakbyte(byte::UInt8, bytemap=bytetoquarters)
 
 Return length-4 `Vector{UInt8}` of the RAW-formatted SNP quarters, as
@@ -72,8 +35,7 @@ determined by `bytemap`, in `byte`.
 
 """
 function breakbyte(byte::UInt8, bytemap=bytetoquarters)
-    @inbounds quarters = bytemap[byte + 1]
-    return quarters
+    @inbounds return bytemap[byte + 1]
 end
 
 # Approach from Quantgen/BEDMatrix: shift by 2(n - 1) and then mask
@@ -314,7 +276,8 @@ immutable BEDMatrix{T, S<:AbstractMatrix} <: DenseArray{T, 2}
 
     _byteheight::Int  # number of bytes in each column
     _lastrowSNPheight::Int  # number of SNPs in last byte of each column ∈ (1, 2, 3, 4)
-    _bytemap::Vector{Vector{T}}
+
+    _bytemap::Vector{Vector{T}}  # quarters for 0x00:0xff
 
     function BEDMatrix(n::Integer, p::Integer, X::AbstractMatrix{UInt8}, navalue, path::AbstractString, colnames::AbstractVector, rownames::AbstractVector)
         byteheight = ceil(Int, n/4)
@@ -332,7 +295,8 @@ immutable BEDMatrix{T, S<:AbstractMatrix} <: DenseArray{T, 2}
                         snp2 in 0b00:0b11 for
                         snp1 in 0b00:0b11]
 
-        return new(n, p, X, navalue, path, colnames, rownames, byteheight, lastrowheight, bytemap)
+        return new(n, p, X, navalue, path, colnames, rownames,
+                   byteheight, lastrowheight, bytemap)
     end
 end
 
@@ -461,7 +425,7 @@ end
 
 Base.linearindexing{T<:BEDMatrix}(::Type{T}) = Base.LinearSlow()
 
-Base.sizeof(B::BEDMatrix) = sizeof(B.X) + sizeof(B.colnames) + sizeof(B.rownames) + sizeof(B._bytemap)
+Base.sizeof(B::BEDMatrix) = sizeof(B.X) + sizeof(B.colnames) + sizeof(B.rownames) + sizeof(B._bytemulttable) + sizeof(B._bytemap)
 
 """
     path(B::BEDMatrix)
@@ -537,13 +501,13 @@ function Base.getindex{T, S, K<:Integer}(B::BEDMatrix{T, S}, ::Colon, cols::Abst
     return matrix
 end
 
-function Base.getindex(B::BEDMatrix, rrange::UnitRange, col::Integer)
+function Base.getindex(B::BEDMatrix, rrange::AbstractUnitRange, col::Integer)
     @boundscheck checkbounds(B, rrange, col)
 
     unsafe_getrowrange(B, rrange, col)
 end
 
-function Base.getindex{T, S, K <: Integer}(B::BEDMatrix{T, S}, rrange::UnitRange, cols::AbstractVector{K})
+function Base.getindex{T, S, K <: Integer}(B::BEDMatrix{T, S}, rrange::AbstractUnitRange, cols::AbstractVector{K})
     @boundscheck checkbounds(B, rrange, cols)
 
     matrix = Matrix{T}(length(rrange), length(cols))
@@ -575,28 +539,18 @@ function unsafe_getcol!{T, S}(column::AbstractArray{T}, B::BEDMatrix{T, S}, col:
     return column
 end
 
-function unsafe_getrowrange{T, S}(B::BEDMatrix{T, S}, rrange::UnitRange, col::Integer)
+function unsafe_getrowrange{T, S}(B::BEDMatrix{T, S}, rrange::AbstractUnitRange, col::Integer)
     vector = Vector{T}(length(rrange))
     unsafe_getrowrange!(vector, B, rrange, col)
     return vector
 end
 
-function unsafe_getrowrange!{T, S}(vector::AbstractArray{T}, B::BEDMatrix{T, S}, rrange::UnitRange, col::Integer, deststart=1)
-    bytestart = B._byteheight*(col - 1) + (rrange.start - 1) >> 2 + 1
-    quarterstart = (rrange.start - 1) & 3 + 1
-    bytestop = B._byteheight*(col - 1) + (rrange.stop - 1) >> 2 + 1
-    quarterstop = (rrange.stop - 1) & 3 + 1
+function unsafe_getrowrange!{T, S}(vector::AbstractArray{T}, B::BEDMatrix{T, S}, rrange::AbstractUnitRange, col::Integer, deststart=1)
+    bytestart = B._byteheight*(col - 1) + (first(rrange) - 1) >> 2 + 1
+    quarterstart = (first(rrange) - 1) & 3 + 1
+    bytestop = B._byteheight*(col - 1) + (last(rrange) - 1) >> 2 + 1
+    quarterstop = (last(rrange) - 1) & 3 + 1
 
     unsafe_copybytestosnps!(vector, B.X, bytestart, quarterstart, bytestop, quarterstop, deststart, B._bytemap)
     return vector
 end
-
-
-######################### Other stuff #########################
-
-# column iterator?
-# column reduce?
-
-## hcat, vcat -- LinkedMatrix
-
-## write to other formats?
