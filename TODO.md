@@ -35,15 +35,17 @@ approach; however, it means one cannot work with integers. This may
 not be that big a deal, since basically any calculation requires
 converting to floats at some point anyway.
 
-Proposal:
-* add `nullvalue` field to `BEDMatrix`
+## Implementation
+* make `NA` behavior customizable, with `navalue` field
 * relegate the question to "outer constructors"
 
 #### To Implement
 
-* change `NA_byte` and `NA` behavior to something more reasonable
-* other constructors: `n` and `p` instead of `.fam` and `.bim`, take an existing matrix `X`
-* Base.show to display missing value as `NA`?
+* other constructors: take an existing matrix `X`?
 * Test exceptions/invalid input
+* basic column math tools
+* note: one could have a LinkedMatrix as the `X` of a `BEDMatrix`
+* output (serially) to high-performance (or other) format
+* write bed files?
 
 #### Bugs/Known Issues
