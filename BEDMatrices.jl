@@ -14,7 +14,8 @@ include("constants.jl")
 include("bedmatrices.jl")
 include("coltools.jl")
 
-export BEDintomatrix, BEDintomatrix!,
-    BEDMatrix, path, rownames, colnames, NArep
+export BEDintomatrix, BEDintomatrix!, BEDMatrix, path, rownames,
+    colnames, NArep, hasNAs, countNAs, column_sum, column_mapreduce,
+    column_moments, column_dot
 
 end

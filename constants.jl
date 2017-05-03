@@ -16,6 +16,9 @@ end
 
 #################### Constants ####################
 
+# module Consts
+# using ..BEDMatrices
+
 ### .bed file constants
 const plinkmagic = [0b0110_1100, 0b0001_1011]
 const modes = Dict(0b0000_0001 => :SNPmajor,
@@ -60,6 +63,7 @@ const bytetoquarters = [[quarterstohuman[snp1 + 1], quarterstohuman[snp2 + 1],
 const onebyte = 0b10_10_10_10  # vector of ones in RAW format
 
 const partialbytemasks = [bytemask(numq, qoff) for numq in 1:4, qoff in 0:3]
+# const partialbytemasks = [BEDMatrices.bytemask(numq, qoff) for numq in 1:4, qoff in 0:3]
 
 const inversebytemap = Dict(bytetoquarters[b + 1] => b for b in 0x0:0xff)
 const natozeromap = [inversebytemap[map(q -> q == NA_byte ? 0b0 : q, bytetoquarters[b + 1])] for b in 0x0:0xff]
@@ -69,3 +73,5 @@ const nacountmap = [count(q -> q === NA_byte, bytetoquarters[b + 1]) for b in 0x
 const hasNAmap = [c > 0 for c in nacountmap]
 
 const bytebytemulttable = [dot(bytetoquarters[natozeromap[b1 + 1] + 1], bytetoquarters[natozeromap[b2 + 1] + 1]) for b1 in 0x0:0xff, b2 in 0x0:0xff]
+
+# end #= End Module =#
