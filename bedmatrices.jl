@@ -518,13 +518,10 @@ function Base.getindex{T, S, K <: Integer}(B::BEDMatrix{T, S}, rrange::AbstractU
 end
 
 function unsafe_getindex{T, S}(B::BEDMatrix{T, S}, row::Integer, col::Integer)
-    # Curse you julia for your foolish 1-indexing!
-    byterow = (row - 1) >> 2 + 1
-    snpind = (row - 1) & 3 + 1
+    byterow, snpind = rowtobytequarter(row)
 
     # @inbounds snp = convert(T, quarter(B.X[byterow, col], snpind))
-    @inbounds snp = breakbyte(B.X[byterow, col], B._bytemap)[snpind]
-    return snp
+    @inbounds return breakbyte(B.X[byterow, col], B._bytemap)[snpind]
 end
 
 function unsafe_getcol{T, S}(B::BEDMatrix{T, S}, col::Integer)
@@ -546,11 +543,30 @@ function unsafe_getrowrange{T, S}(B::BEDMatrix{T, S}, rrange::AbstractUnitRange,
 end
 
 function unsafe_getrowrange!{T, S}(vector::AbstractArray{T}, B::BEDMatrix{T, S}, rrange::AbstractUnitRange, col::Integer, deststart=1)
-    bytestart = B._byteheight*(col - 1) + (first(rrange) - 1) >> 2 + 1
-    quarterstart = (first(rrange) - 1) & 3 + 1
-    bytestop = B._byteheight*(col - 1) + (last(rrange) - 1) >> 2 + 1
-    quarterstop = (last(rrange) - 1) & 3 + 1
+    bytestart, quarterstart = rowtobytequarter(first(rrange))
+    bytestart += B._byteheight*(col - 1)
+
+    bytestop, quarterstop = rowtobytequarter(last(rrange))
+    bytestop += B._byteheight*(col - 1)
 
     unsafe_copybytestosnps!(vector, B.X, bytestart, quarterstart, bytestop, quarterstop, deststart, B._bytemap)
     return vector
+end
+
+function rowtobytequarter(row::Integer)
+    # Curse you julia for your foolish 1-indexing!
+    return ((row - 1) >> 2 + 1, (row - 1) & 3 + 1)
+end
+
+"""
+    getquarterblock(B::BEDMatrix, row::Integer, col::Integer)
+
+Returns `(fourquarters, snpind)`, where `fourquarters` is the block of
+quarters that `B[row, col]` belongs to: `B[row, col] =
+fourquarters[snpind]`.
+
+"""
+function getquarterblock(B::BEDMatrix, row::Integer, col::Integer)
+    byterow, snpind = rowtobytequarter(row)
+    @inbounds return (breakbyte(B.X[byterow, col], B._bytemap), byterow, snpind)
 end
