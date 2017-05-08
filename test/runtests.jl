@@ -103,6 +103,9 @@ const simbeds = [simulatedBEDMatrix(4, 5), simulatedBEDMatrix(5, 5, Int, 255), s
         # Mostly to check for possible mod 4 or type issues
         for (simdata, simbed) in simbeds
             @test simbed[:, :] == simdata
+            for j in eachindex(simdata)
+                @test simbed[j] === simdata[j]
+            end
         end
     end
 end
