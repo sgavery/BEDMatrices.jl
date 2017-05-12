@@ -52,12 +52,12 @@ order: `0b01`, `0b10`, `0b10`, `0b11`, and then changing from BED
 format to `rawformat` with `0x03` representing missing value.
 
 """
-const bytetoquarters = [[quarterstohuman[snp1 + 1], quarterstohuman[snp2 + 1],
-                         quarterstohuman[snp3 + 1], quarterstohuman[snp4 + 1]] for
-                        snp4 in 0b00:0b11 for
-                        snp3 in 0b00:0b11 for
-                        snp2 in 0b00:0b11 for
-                        snp1 in 0b00:0b11]
+const bytetoquarters = tuple([(quarterstohuman[snp1 + 1], quarterstohuman[snp2 + 1],
+                               quarterstohuman[snp3 + 1], quarterstohuman[snp4 + 1]) for
+                              snp4 in 0b00:0b11 for
+                              snp3 in 0b00:0b11 for
+                              snp2 in 0b00:0b11 for
+                              snp1 in 0b00:0b11]...)
 
 ### BED byte to RAW math
 const onebyte = 0b10_10_10_10  # vector of ones in RAW format
@@ -69,9 +69,14 @@ const inversebytemap = Dict(bytetoquarters[b + 1] => b for b in 0x0:0xff)
 const natozeromap = [inversebytemap[map(q -> q == NA_byte ? 0b0 : q, bytetoquarters[b + 1])] for b in 0x0:0xff]
 
 const nacountmap = [count(q -> q === NA_byte, bytetoquarters[b + 1]) for b in 0x0:0xff]
+const distributionmap = tuple(map(b -> (count(q -> q === 0b00, bytetoquarters[b + 1]),
+                                        count(q -> q === 0b01, bytetoquarters[b + 1]),
+                                        count(q -> q === 0b10, bytetoquarters[b + 1]),
+                                        count(q -> q === 0b11, bytetoquarters[b + 1])), 0x0:0xff)...)
 
-const hasNAmap = [c > 0 for c in nacountmap]
+const hasNAmap = tuple([c > 0 for c in nacountmap]...)
 
-const bytebytemulttable = [dot(bytetoquarters[natozeromap[b1 + 1] + 1], bytetoquarters[natozeromap[b2 + 1] + 1]) for b1 in 0x0:0xff, b2 in 0x0:0xff]
+const bytebytemulttable = [dot(collect(bytetoquarters[natozeromap[b1 + 1] + 1]),
+                               collect(bytetoquarters[natozeromap[b2 + 1] + 1])) for b1 in 0x0:0xff, b2 in 0x0:0xff]
 
 # end #= End Module =#
