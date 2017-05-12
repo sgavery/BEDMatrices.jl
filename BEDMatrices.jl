@@ -10,12 +10,15 @@ documentation for more details.
 
 """
 module BEDMatrices
+using Base.LinAlg.axpy!
+
 include("constants.jl")
 include("bedmatrices.jl")
 include("coltools.jl")
 
 export BEDintomatrix, BEDintomatrix!, BEDMatrix, path, rownames,
-    colnames, NArep, hasNAs, countNAs, column_sum, column_mapreduce,
-    column_moments, column_dot
+    colnames, NArep, hasNAs, countNAs, BEDdot, column_dist, column_sum,
+    column_dot, column_sumabs2, column_norm, column_mean_and_std,
+    column_mean_and_var
 
 end

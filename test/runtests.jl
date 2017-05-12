@@ -14,8 +14,8 @@ const rawfile = "example.raw"
 const singleindices = [(13, 1), (13, 2), (13, 3), (13, 4),
                        (50, 998), (50, 999), (50, 1000),
                        (47, 3), (48, 3), (49, 3), (50, 3)]
-const rowarrays = [[], collect(1:50), [1, 11, 12], [1, 2], [48, 7, 49, 50]]
-const colarrays = [[], collect(1:1000), [491, 13, 73], [1], [33, 31]]
+const rowarrays = [Vector{Int}(0), collect(1:50), [1, 11, 12], [1, 2], [48, 7, 49, 50]]
+const colarrays = [Vector{Int}(0), collect(1:1000), [491, 13, 73], [1], [33, 31]]
 const rowranges = [1:0, 1:2, 1:5, 1:50, 2:50, 3:50, 4:50]
 const colranges = [1:0, 1:2, 1:101, 990:1000]
 const linearranges = [1:75, 2:75, 50:51, 49:101, 40_000:50_000]
@@ -150,6 +150,29 @@ end
     end
 end
 
+@testset "tocontiguous" begin
+    for rrange in rowranges
+        rows = collect(rrange)
+        if isempty(rows)
+            @test BEDMatrices.tocontiguous(rows) == Vector{Int}(0)
+        else
+            @test BEDMatrices.tocontiguous(rows)[1] == rrange
+        end
+    end
+
+    for rows in rowarrays[2:end]
+        @test mapreduce(collect, vcat, BEDMatrices.tocontiguous(rows)) == rows
+    end
+
+    for rlogic in rowlogicals
+        if any(rlogic)
+            @test [x in mapreduce(collect, vcat, BEDMatrices.tocontiguous(rlogic)) for x in 1:50] == rlogic
+        else
+            @test BEDMatrices.tocontiguous(rlogic) == []
+        end
+    end
+end
+
 @testset "Column Tools" begin
     @testset "typealiases" begin
         m = zeros(10, 20)
@@ -200,14 +223,20 @@ end
         @test hasNAs(view(bed, 1:7, 9)) == any(e -> e === BEDMatrices.NA_byte, exampledata[1:7, 9])
         @test hasNAs(view(bed, 8:50, 9)) == any(e -> e === BEDMatrices.NA_byte, exampledata[8:end, 9])
         @test hasNAs(view(bed, 7:50, 9)) == any(e -> e === BEDMatrices.NA_byte, exampledata[7:end, 9])
+
+        @test hasNAs(view(bed, 1:6, 7:10)) == any(e -> e === BEDMatrices.NA_byte, exampledata[1:6, 7:10])
+        @test hasNAs(view(bed, 7:10, 1:20)) == any(e -> e === BEDMatrices.NA_byte, exampledata[7:10, 1:20])
     end
 
     @testset "countNAs" begin
         @test countNAs(bed) == count(e -> e === BEDMatrices.NA_byte, exampledata)
+
         for col in 1:25
             @test countNAs(view(bed, :, col)) == count(e -> e === BEDMatrices.NA_byte, exampledata[:, col])
             @test countNAs(view(bed, 1:25, col)) == count(e -> e === BEDMatrices.NA_byte, exampledata[1:25, col])
+            @test countNAs(view(bed, [2, 3, 5, 7, 11, 13], col)) == count(e -> e === BEDMatrices.NA_byte, exampledata[[2, 3, 5, 7, 11, 13], col])
         end
+
         for (simdata, simbed) in simbeds
             @test countNAs(simbed) == count(e -> e === NArep(simbed), simdata)
             @test countNAs(view(simbed, :, 1)) == count(e -> e === NArep(simbed), simdata[:, 1])
@@ -218,6 +247,10 @@ end
         for col in 1:20
             @test sum(view(bed, :, col)) == sum(e -> e === BEDMatrices.NA_byte ? zero(e) : e, exampledata[:, col])
             @test sum(view(bed, 1:25, col)) == sum(e -> e === BEDMatrices.NA_byte ? zero(e) : e, exampledata[1:25, col])
+            @test sum(view(bed, [2, 3, 5, 7, 11], col)) == sum(e -> e === BEDMatrices.NA_byte ? zero(e) : e, exampledata[[2, 3, 5, 7, 11], col])
+
+            @test sum(x -> (x-1)^10, view(bed, :, col)) == sum(e -> e === BEDMatrices.NA_byte ? zero(e) : (e - 1)^10, exampledata[:, col])
+            @test sum(x -> x === NArep(bed) ? 37 : (x-1)^2, view(bed, :, col); skipna=false) == sum(e -> e === BEDMatrices.NA_byte ? 37 : (e - 1)^2, exampledata[:, col])
         end
     end
 
@@ -225,6 +258,18 @@ end
         for col in 1:20
             @test column_sum(abs2, bed, col) == sum(e -> e === BEDMatrices.NA_byte ? zero(e) : abs2(e), exampledata[:, col])
             @test column_sum(x -> (x-1)^10, bed, col, 1:25) == sum(e -> e === BEDMatrices.NA_byte ? zero(e) : (e-1)^10, exampledata[1:25, col])
+        end
+    end
+
+    @testset "BEDdot" begin
+        v = collect(1:50)
+        for col1 in 20:30
+            @test BEDdot(view(bed, :, col1), v) == dot(map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, bed[:, col1]), v)
+            @test BEDdot(v, view(bed, :, col1)) == dot(map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, bed[:, col1]), v)
+            for col2 in 31:36
+                @test BEDdot(view(bed, :, col1), view(bed, :, col2)) == dot(map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, bed[:, col1]),
+                                                                            map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, bed[:, col2]))
+            end
         end
     end
 

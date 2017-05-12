@@ -65,8 +65,9 @@ and `filebase*".bim"`.
 """
 function BEDsize(filebase::AbstractString)
     famfile, bimfile = filebase*".fam", filebase*".bim"
-    isfile(famfile) || error("missing .fam file")
-    isfile(bimfile) || error("missing .bim file")
+    isfile(famfile) || error("missing FAM file \"$famfile\"")
+    isfile(bimfile) || error("missing BIM file \"$bimfile\"")
+
     n = countlines(famfile)
     p = countlines(bimfile)
     return n, p
@@ -228,7 +229,7 @@ end
 
 Fills `A` with type `T` representation of `bedstream` that corresponds
 to .bed file format. `A` must have correct dimensions, as determined
-via `BEDsize`, for example.
+via `BEDMatrices.BEDsize`, for example.
 
 """
 function BEDintomatrix!{T<:Real}(A::AbstractMatrix{T}, bedstream::IO)
@@ -374,7 +375,7 @@ function BEDMatrix(bedfilename::AbstractString;
     elseif nsamples > 0
         rownames = [string("sample_", j) for j in 1:nsamples]
     else
-        error("Cannot find file \"$famfile\" and nsamples not provided")
+        error("Cannot find FAM file \"$famfile\" and nsamples not provided")
     end
 
     bimfile = bimfile == "" ? filebase*".bim" : bimfile
@@ -383,7 +384,7 @@ function BEDMatrix(bedfilename::AbstractString;
     elseif nSNPs > 0
         colnames = [string("SNP_", j) for j in 1:nSNPs]
     else
-        error("Cannot find file \"$bimfile\" and nSNPs not provided")
+        error("Cannot find BIM file \"$bimfile\" and nSNPs not provided")
     end
 
     n, p = length(rownames), length(colnames)
@@ -425,7 +426,10 @@ end
 
 Base.linearindexing{T<:BEDMatrix}(::Type{T}) = Base.LinearSlow()
 
-Base.sizeof(B::BEDMatrix) = sizeof(B.X) + sizeof(B.colnames) + sizeof(B.rownames) + sizeof(B._bytemulttable) + sizeof(B._bytemap)
+# not sure if this is the right definition; see
+# https://github.com/JuliaLang/julia/issues/16614.
+# This is the size of `B[:, :]`.
+Base.sizeof{T, S}(B::BEDMatrix{T, S}) = B.n*B.p*sizeof(T)
 
 """
     path(B::BEDMatrix)
@@ -585,6 +589,12 @@ function tocontiguous(index::AbstractVector{Bool})
 
     ranges = Vector{UnitRange{Int}}(n)
     start = findfirst(index)
+
+    # If there are no indices return []
+    if start == 0
+        return resize!(ranges, 0)
+    end
+
     stop = findlast(index)
 
     oldidx = idx = start - 1

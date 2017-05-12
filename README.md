@@ -10,13 +10,15 @@ package [BEDMatrix](https://github.com/QuantGen/BEDMatrix).
 
 Features
 --------
-* Read plink bed files into standard `Matrix{T}`
+* Read plink bed files into standard `Matrix{T}` (use `BEDintomatrix`)
 * Memory-mapped `BEDMatrix` type with efficient indexing
 * `BEDMatrix` can be indexed with `rownames` and `colnames` read from
   accompanying .fam and .bim files
 * RAW-formatted output
 * Customizable NA behavior
-* [In progress] Tools for efficient column-wise calculations (per SNP)
+* Tools for efficient column/SNP-wise calculations. (Parallelized
+  multi-column operations will be provided elsewhere, along with
+  regression and other statistical analysis tools.)
 
 Examples/Basic Usage
 -------------------
@@ -73,8 +75,8 @@ julia> bed[2:12, 1:10]
 ```
 
 Note that `3.0` (or `0x03` in the previous example) currently is the
-default indicator for missing values; this will likely change. This is
-set by `BEDMatrices.NA_byte`:
+default indicator for missing values; this may change. This is set by
+`BEDMatrices.NA_byte`:
 
 ```julia
 julia> BEDMatrices.NA_byte
@@ -165,7 +167,10 @@ julia> size(bed)
 (50,1000)
 
 julia> sizeof(bed)
-23448
+400000
+
+julia> Base.summarysize(bed)
+48615
 
 julia> rownames(bed)[1:10]
 10-element Array{String,1}:
@@ -212,6 +217,83 @@ help?> BEDMatrix
 [...]
 ```
 
+Column-wise Operations
+----------------------
+
+In general, working with slices, while convenient and intuitive, is
+bad for performance; each slice has to allocate memory. Additionally,
+because of the compact BED format, there are (roughly four-fold)
+performance gains to be had by working at the byte level, _if_ one
+works with large contiguous subsets of columns.
+
+There are several tools for efficiently performing basic functions on
+columns of a `BEDMatrix`. Here are some examples:
+
+```julia
+julia> bed = BEDMatrix("example.bed");
+
+julia> hasNAs(view(bed, :, 2))
+false
+
+julia> hasNAs(view(bed, :, 3))
+true
+
+julia> hasNAs(bed)
+true
+
+julia> countNAs(view(bed, :, 2))
+0
+
+julia> countNAs(view(bed, :, 3))
+2
+
+julia> countNAs(bed)
+975
+
+julia> column_dist(bed, 2)  # number of (0s, 1s, 2s, NAs)
+(13,26,11,0)
+
+julia> column_dist(bed, 3)
+(16,25,7,2)
+
+julia> column_sum(bed, 2)
+48
+
+julia> column_sum(bed, 3)
+39
+
+julia> column_sum(x -> (x - 0.5)^5, bed, 3)
+53.4375
+
+julia> column_norm(bed, 3)
+7.280109889280518
+
+julia> column_norm(bed, 3, :, 1)
+39.0
+
+julia> column_dot(bed, 1, 2)
+41
+
+julia> column_sumabs2(bed, 3)
+53
+
+julia> column_mean_and_std(bed, 3)
+(0.8125,0.6733924909059431)
+
+```
+
+As demonstrated above, many functions support using `SubArray`s
+(formed with `view`) for convenience. While these methods are all
+faster and more memory efficient than working with slices, there is
+some overhead. For optimal performance use the `column_<methodname>`
+form, that these functions call. See the documentation for usage and
+method details, including treatment of missing values.
+
+Of these, the most important is `column_dist(bed, col, rows)`, which
+returns the column distribution: the number of 0s, 1s, 2s, and NAs in
+`B[rows, col]`. This is generally the complete set of information that
+one needs about an individual SNP on (a subset of) the sample
+population; indeed this is used by many of the other methods.
 
 BED format details
 ------------------

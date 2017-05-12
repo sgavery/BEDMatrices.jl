@@ -1,3 +1,24 @@
+
+#### To Implement
+
+* move constants to submodule
+* add rows argument for `BEDdot`
+* make column tool interface consistent with StatsBase.jl?
+* `column_any` and `column_all`?
+* `column_moment`?
+
+* write benchmarks on simulated `BEDMatrix`
+* Benchmark usage of `tocontiguous`
+* use mean imputation instead of setting NA to 0?
+* move constants to submodule
+* other constructors: take an existing matrix `X`?
+* Test exceptions/invalid input
+* note: one could have a LinkedMatrix as the `X` of a `BEDMatrix`
+* output (serially) to high-performance (or other) format
+* write bed files?
+* read all information in .fam and .bim files?
+
+
 #### Major Design Decision: NA values
 
 While returning a special value, `NA_byte`, for missing values is a
@@ -39,13 +60,7 @@ converting to floats at some point anyway.
 * make `NA` behavior customizable, with `navalue` field
 * relegate the question to "outer constructors"
 
-#### To Implement
-
-* other constructors: take an existing matrix `X`?
-* Test exceptions/invalid input
-* basic column math tools
-* note: one could have a LinkedMatrix as the `X` of a `BEDMatrix`
-* output (serially) to high-performance (or other) format
-* write bed files?
 
 #### Bugs/Known Issues
+
+* Cannot seem to overload `Base.dot` for `BEDColumns`, hence using `BEDdot`.
