@@ -149,7 +149,7 @@ function unsafe_copybytestosnps!(snparray::AbstractArray, bytearray::AbstractArr
                                  deststart::Integer=1, bytemap=bytetoquarters)
     # First byte
     if quarterstart != 1
-        stop = bytestart == bytestop ? quarterstop : 4
+        stop = ifelse(bytestart == bytestop, quarterstop, 4)
         @inbounds unsafe_breakbyte!(snparray, bytearray[bytestart], bytemap, deststart, quarterstart, stop)
         deststart += stop - quarterstart + 1
         bytestart += 1
@@ -569,4 +569,67 @@ fourquarters[snpind]`.
 function getquarterblock(B::BEDMatrix, row::Integer, col::Integer)
     byterow, snpind = rowtobytequarter(row)
     @inbounds return (breakbyte(B.X[byterow, col], B._bytemap), byterow, snpind)
+end
+
+"""
+    tocontiguous(index::AbstractVector{Bool})
+
+Takes a logical index (vector of `Bool`s for each index) and converts
+it into a `Vector` of `UnitRange`s. This is especially useful for
+multicolumn or repeated uses of the same `index` to exploit the
+performance benefits of byte-wise calculations.
+
+"""
+function tocontiguous(index::AbstractVector{Bool})
+    n = length(index)
+
+    ranges = Vector{UnitRange{Int}}(n)
+    start = findfirst(index)
+    stop = findlast(index)
+
+    oldidx = idx = start - 1
+    rangeidx = 0
+    while idx < stop
+        oldidx = idx
+        idx = findnext(!, index, idx + 1)
+        idx == 0 && break
+
+        if oldidx + 1 < idx
+            rangeidx += 1
+            ranges[rangeidx] = (oldidx + 1):(idx - 1)
+        end
+    end
+
+    if idx == 0 && oldidx < stop
+        rangeidx += 1
+        ranges[rangeidx] = (oldidx + 1):stop
+    end
+
+    resize!(ranges, rangeidx)
+end
+
+"""
+    tocontiguous{T<:Integer}(index::AbstractVector{T})
+
+Takes a `Vector` of indices and converts it into a `Vector` of
+`UnitRange`s.
+
+"""
+function tocontiguous{T<:Integer}(index::AbstractVector{T})
+    n = length(index)
+    ranges = Vector{UnitRange{Int}}(n)
+
+    oldidx = idx = 1
+    rangeidx = 0
+    while idx <= n
+        oldidx = idx
+        idx += 1
+        while idx <= n && (index[idx] == index[oldidx] + (idx - oldidx))
+            idx += 1
+        end
+        rangeidx += 1
+        ranges[rangeidx] = index[oldidx]:index[idx - 1]
+    end
+
+    resize!(ranges, rangeidx)
 end
