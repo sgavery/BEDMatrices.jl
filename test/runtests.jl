@@ -5,6 +5,7 @@
 include("../BEDMatrices.jl")
 using BEDMatrices
 using Base.Test
+include("testtools.jl")
 
 const examplepath = "./data/"
 const bedfile = "example.bed"
@@ -20,64 +21,6 @@ const colranges = [1:0, 1:2, 1:101, 990:1000]
 const linearranges = [1:75, 2:75, 50:51, 49:101, 40_000:50_000]
 const rowlogicals = [fill(true, 50), fill(false, 50), map(x -> x > 25, 1:50)]
 const collogicals = [fill(true, 1000), fill(false, 1000), map(x -> x > 777, 1:1000)]
-
-function simulatedBEDMatrix(n::Integer, p::Integer, datatype::DataType=UInt8, navalue=BEDMatrices.NA_byte, missingvalues=true)
-    srand(0)  # for reproducibility
-    if missingvalues
-        M = rand(0b00:0b11, n, p)
-    else
-        M = rand([0b00, 0b10, 0b11], n, p)
-    end
-
-    byten = cld(n, 4)
-    numlastsnps = n - 4*(byten - 1)
-
-    X = Matrix{UInt8}(byten, p)
-    for col in 1:p
-        for r in 1:(byten - 1)
-            X[r, col] = quarterstobyte(M[(4r - 3):(4r), col])
-        end
-        X[byten, col] = quarterstobyte([q <= numlastsnps ? M[end-numlastsnps + q, col] : 0b0 for q in 1:4])
-    end
-
-    path = "memory"
-    rownames = [string("row_", j) for j in 1:n]
-    colnames = [string("col_", j) for j in 1:p]
-
-    bed = BEDMatrix{datatype, typeof(X)}(n, p, X, convert(datatype, navalue),
-                                         path, colnames, rownames)
-    navalue_typed = convert(datatype, navalue)
-    data = map(x -> x === 0b01 ? navalue_typed : convert(datatype, BEDMatrices.rawformat(x)), M)
-    return (data, bed)
-end
-
-function quarterstobyte(v::Vector{UInt8})
-    byte = 0x0
-    for (qidx, q) in enumerate(v)
-        byte += q << 2*(qidx - 1)
-    end
-    byte
-end
-
-function readRAW(filename::String)
-    n = countlines(filename) - 1
-
-    lines = readlines(filename)
-
-    header = split(lines[1])
-    p = length(header) - 6
-    colnames = header[7:end]
-    data = Matrix{UInt8}(n, p)
-    rownames = Vector{String}(n)
-
-    for (row, line) in enumerate(lines[2:end])
-        fields = split(line)
-        rownames[row] = fields[1]*"_"*fields[2]
-        data[row, :] = map(fld -> fld == "NA" ? BEDMatrices.NA_byte : parse(UInt8, fld), fields[7:end])
-    end
-
-    return rownames, colnames, data
-end
 
 const examplerows, examplecols, exampledata = readRAW(examplepath*rawfile)
 const bed = BEDMatrix(examplepath*bedfile)
@@ -278,7 +221,22 @@ end
         end
     end
 
-    @testset "dot" begin
+    @testset "column_sum(func, ...)" begin
+        for col in 1:20
+            @test column_sum(abs2, bed, col) == sum(e -> e === BEDMatrices.NA_byte ? zero(e) : abs2(e), exampledata[:, col])
+            @test column_sum(x -> (x-1)^10, bed, col, 1:25) == sum(e -> e === BEDMatrices.NA_byte ? zero(e) : (e-1)^10, exampledata[1:25, col])
+        end
+    end
+
+    @testset "column_dot" begin
+        v = collect(1:50)
+        for col1 in 20:30
+            @test column_dot(bed, col1, v) == dot(map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, bed[:, col1]), v)
+            for col2 in 26:30
+                @test column_dot(bed, col1, col2) == dot(map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, bed[:, col1]),
+                                                         map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, bed[:, col2]))
+            end
+        end
     end
 
     @testset "sumabs2" begin
@@ -288,12 +246,12 @@ end
         end
     end
 
-    @testset "norm" begin
-    end
-
-    @testset "mapreduce" begin
-    end
-
-    @testset "moments" begin
+    @testset "column_norm" begin
+        for col in 20:40
+            @test column_norm(bed, col) == norm(map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, exampledata[:, col]))
+            @test column_norm(bed, col, :, 3) ≈ norm(map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, exampledata[:, col]), 3)
+            @test column_norm(bed, col, :, 4) ≈ norm(map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, exampledata[:, col]), 4)
+            @test column_norm(bed, col, 1:30, 4) ≈ norm(map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, exampledata[1:30, col]), 4)
+        end
     end
 end
