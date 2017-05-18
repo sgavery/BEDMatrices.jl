@@ -16,8 +16,6 @@ end
 
 #################### Constants ####################
 
-# module Consts
-# using ..BEDMatrices
 
 ### .bed file constants
 const plinkmagic = [0b0110_1100, 0b0001_1011]
@@ -79,4 +77,3 @@ const hasNAmap = tuple([c > 0 for c in nacountmap]...)
 const bytebytemulttable = [dot(collect(bytetoquarters[natozeromap[b1 + 1] + 1]),
                                collect(bytetoquarters[natozeromap[b2 + 1] + 1])) for b1 in 0x0:0xff, b2 in 0x0:0xff]
 
-# end #= End Module =#

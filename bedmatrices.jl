@@ -23,7 +23,7 @@ Returns RAW format from the BED format quarter-byte:
 | `0b10` | `0b01`        | `quartermap[4]` | heterozygous            |
 
 """
-@inline function rawformat(snp::Integer, quartermap=quarterstohuman)
+@inline function rawformat(snp::Integer, quartermap=Consts.quarterstohuman)
     @inbounds return quartermap[snp + 1]
 end
 
@@ -34,7 +34,7 @@ Return length-4 `Vector{UInt8}` of the RAW-formatted SNP quarters, as
 determined by `bytemap`, in `byte`.
 
 """
-function breakbyte(byte::UInt8, bytemap=bytetoquarters)
+function breakbyte(byte::UInt8, bytemap=Consts.bytetoquarters)
     @inbounds return bytemap[byte + 1]
 end
 
@@ -50,7 +50,7 @@ Returns the RAW-formatted `n`th quarter of `byte`, equivalent to
 `breakbyte(byte)[n]`.
 
 """
-function quarter(byte::UInt8, n::Integer, quartermap=quarterstohuman)
+function quarter(byte::UInt8, n::Integer, quartermap=Consts.quarterstohuman)
     @inbounds return quartermap[((byte >> 2(n - 1)) & 0b00000011) + 1]
 end
 
@@ -80,7 +80,7 @@ Determine if first two "magic" bytes match plink format. If not throws
 an error, else returns `true`.
 
 """
-checkmagic(bytes::Vector{UInt8}) = (bytes[1:2] == plinkmagic || error("Bad magic: not a plink bed file"))
+checkmagic(bytes::Vector{UInt8}) = (bytes[1:2] == Consts.plinkmagic || error("Bad magic: not a plink bed file"))
 
 function checkmagic(bedstream::IO)
     seekstart(bedstream)
@@ -96,7 +96,7 @@ either the current standard, `:SNPmajor`, or older plink formats,
 `:SNPminor`.
 
 """
-BEDmode(byte::UInt8) = modes[byte]
+BEDmode(byte::UInt8) = Consts.modes[byte]
 
 function BEDmode(bedstream::IO)
     seek(bedstream, 2)
@@ -117,7 +117,7 @@ through the `quarterstop`th snp in `byte`, as determined by `bytemap`.
 * 1 <= `vecstart` <= `end - (quarterstop - quarterstart)`
 
 """
-function unsafe_breakbyte!(vector::AbstractArray, byte::UInt8, bytemap=bytetoquarters, vecstart=1, quarterstart=1, quarterstop=4)
+function unsafe_breakbyte!(vector::AbstractArray, byte::UInt8, bytemap=Consts.bytetoquarters, vecstart=1, quarterstart=1, quarterstop=4)
     @inbounds copy!(vector, vecstart,
                     breakbyte(byte, bytemap), quarterstart,
                     quarterstop - quarterstart + 1)
@@ -147,7 +147,7 @@ Utility function used by more front facing functions.
 function unsafe_copybytestosnps!(snparray::AbstractArray, bytearray::AbstractArray{UInt8},
                                  bytestart::Integer, quarterstart::Integer,
                                  bytestop::Integer, quarterstop::Integer,
-                                 deststart::Integer=1, bytemap=bytetoquarters)
+                                 deststart::Integer=1, bytemap=Consts.bytetoquarters)
     # First byte
     if quarterstart != 1
         stop = ifelse(bytestart == bytestop, quarterstop, 4)

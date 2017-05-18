@@ -12,7 +12,7 @@ format!!
 
 """
 function maskbyte(bedbyte::UInt8, num_quarters::Integer, qoffset::Integer=0)
-    @inbounds return (bedbyte | partialbytemasks[num_quarters, qoffset + 1])
+    @inbounds return (bedbyte | Consts.partialbytemasks[num_quarters, qoffset + 1])
 end
 
 """
@@ -23,7 +23,7 @@ otherwise.
 
 """
 function hasNAs(bedbyte::UInt8)
-    @inbounds return hasNAmap[bedbyte + 1]
+    @inbounds return Consts.hasNAmap[bedbyte + 1]
 end
 
 """
@@ -34,7 +34,7 @@ values set to zero. Assumes RAW format!!
 
 """
 function zeroNAs(bedbyte::UInt8)
-    @inbounds return natozeromap[bedbyte + 1]
+    @inbounds return Consts.natozeromap[bedbyte + 1]
 end
 
 """
@@ -44,12 +44,12 @@ Returns the number of missing values in `bedbyte`.
 
 """
 function countNAs(bedbyte::UInt8)
-    @inbounds return nacountmap[bedbyte + 1]
+    @inbounds return Consts.nacountmap[bedbyte + 1]
 end
 
 
 function bytedot(b1::UInt8, b2::UInt8)
-    @inbounds return bytebytemulttable[b1 + 1, b2 + 1]
+    @inbounds return Consts.bytebytemulttable[b1 + 1, b2 + 1]
 end
 
 """
@@ -105,7 +105,7 @@ end
 
 
 function byteabs2(b::UInt8)
-    @inbounds return bytebytemulttable[b + 1, b + 1]
+    @inbounds return Consts.bytebytemulttable[b + 1, b + 1]
 end
 
 
@@ -125,7 +125,7 @@ function bytesum(byte::UInt8, num_quarters::Integer, qoffset::Integer=0)
 end
 
 function bytedist(bedbyte::UInt8)
-    @inbounds return distributionmap[bedbyte + 1]
+    @inbounds return Consts.distributionmap[bedbyte + 1]
 end
 
 """
@@ -143,7 +143,7 @@ quarters.
 """
 function bytedist(bedbyte::UInt8, num_quarters::Integer, qoffset::Integer=0)
     @boundscheck num_quarters + qoffset <= 4
-    @inbounds dist = distributionmap[maskbyte(bedbyte, num_quarters, qoffset) + 1]
+    @inbounds dist = Consts.distributionmap[maskbyte(bedbyte, num_quarters, qoffset) + 1]
     return dist
 end
 
@@ -490,9 +490,11 @@ end
     column_norm(B::BEDMatrix, col::Integer, rows=(:), p=2)
 
 Computes the `p`-norm of `B[rows, col]`, where the `p`-norm of a
-vector `v` is given by
+vector `v` is given by ``\LaTeX``
 
-``||v||_p = (Σ_j |v_j|^p)^(1/p)``
+```math
+\\|v\\|_p = \\big(\sum_j |v_j|^p\\big)^\\frac{1}{p}
+```
 
 Missing values are ignored; use with care.
 

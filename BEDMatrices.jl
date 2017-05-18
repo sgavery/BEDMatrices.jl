@@ -12,7 +12,12 @@ documentation for more details.
 module BEDMatrices
 using Base.LinAlg.axpy!
 
+module Consts
 include("constants.jl")
+end
+
+const NA_byte = Consts.NA_byte
+
 include("bedmatrices.jl")
 include("coltools.jl")
 

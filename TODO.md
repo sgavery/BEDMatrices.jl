@@ -1,7 +1,6 @@
 
 #### To Implement
 
-* move constants to submodule
 * add rows argument for `BEDdot`
 * make column tool interface consistent with StatsBase.jl?
 * `column_any` and `column_all`?
