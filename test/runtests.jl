@@ -2,7 +2,7 @@
 # * exceptions: no file, missing fam/bim, out-of-bounds indexing, not a bed file, old bed file
 # * working directory
 
-include("../BEDMatrices.jl")
+include("../src/BEDMatrices.jl")
 using BEDMatrices
 using Base.Test
 include("testtools.jl")

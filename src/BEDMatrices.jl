@@ -18,7 +18,7 @@ end
 
 const NA_byte = Consts.NA_byte
 
-include("bedmatrices.jl")
+include("bedmatrix.jl")
 include("coltools.jl")
 
 export BEDintomatrix, BEDintomatrix!, BEDMatrix, path, rownames,
