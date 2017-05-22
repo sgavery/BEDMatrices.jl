@@ -188,7 +188,7 @@ then read into the matrix for potential speedups.
 function BEDintomatrix{T<:Real}(bedfilename::AbstractString, ::Type{T}=UInt8, n::Integer=0, p::Integer=0; use_mmap=true)
     n == p == 0 && !endswith(bedfilename, ".bed") && error("Need .bed file extension or dimensions n and p provided")
     if n == p == 0
-        filebase = join((split(bedfilename, '.')[1:(end - 1)]), '.')
+        filebase = splitext(bedfilename)[1]
         n, p = BEDsize(filebase)
     end
 
@@ -196,9 +196,12 @@ function BEDintomatrix{T<:Real}(bedfilename::AbstractString, ::Type{T}=UInt8, n:
 
     fsz = filesize(bedfilename)
     if use_mmap && 0 < fsz < typemax(Int)
-        bedfilevector = Mmap.mmap(bedfilename, Vector{UInt8}, (Int(fsz),))
-        checkmagic(bedfilevector)
-        BEDmode(bedfilevector) == :SNPmajor || error("SNPminor mode not supported")
+        bedfilevector = open(bedfilename, "r") do bedfile
+            bvec = Mmap.mmap(bedfile, Vector{UInt8}, (Int(fsz),))
+            checkmagic(bvec)
+            BEDmode(bvec) == :SNPmajor || error("SNPminor mode not supported")
+            bvec
+        end
         BEDintomatrix!(A, bedfilevector)
     else
         open(bedfilename, "r") do bedfin

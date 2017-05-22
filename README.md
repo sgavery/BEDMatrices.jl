@@ -8,6 +8,20 @@ genotype data (.bed, .fam, .bim files)
 in [julia](http://julialang.org/). This package is, in part, based on the R
 package [BEDMatrix](https://github.com/QuantGen/BEDMatrix).
 
+Installation
+-----------
+
+The package is currently only available through
+MSU [gitlab](https://gitlab.msu.edu/QuantGen/BEDMatrices.jl). To
+install, run the following
+
+```julia
+julia> Pkg.clone("https://gitlab.msu.edu/QuantGen/BEDMatrices.jl")
+```
+
+You will be prompted for your gitlab credentials.
+
+
 Features
 --------
 * Read plink bed files into standard `Matrix{T}` (use `BEDintomatrix`)
