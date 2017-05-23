@@ -2,6 +2,7 @@
 #### To Implement
 
 * add rows argument for `BEDdot`
+* add navalue and keyword interface for `BEDintoMatrix`
 * make column tool interface consistent with StatsBase.jl?
 * `column_any` and `column_all`?
 * `column_moment`?
@@ -9,7 +10,6 @@
 * write benchmarks on simulated `BEDMatrix`
 * Benchmark usage of `tocontiguous`
 * use mean imputation instead of setting NA to 0?
-* move constants to submodule
 * other constructors: take an existing matrix `X`?
 * Test exceptions/invalid input
 * note: one could have a LinkedMatrix as the `X` of a `BEDMatrix`
