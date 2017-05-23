@@ -2,11 +2,10 @@
 #### To Implement
 
 * add rows argument for `BEDdot`
-* add navalue and keyword interface for `BEDintoMatrix`
 * make column tool interface consistent with StatsBase.jl?
 * `column_any` and `column_all`?
 * `column_moment`?
-
+* use tuple of tuples for BEDMatrix._bytemap?
 * write benchmarks on simulated `BEDMatrix`
 * Benchmark usage of `tocontiguous`
 * use mean imputation instead of setting NA to 0?

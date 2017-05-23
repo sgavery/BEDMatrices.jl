@@ -105,6 +105,19 @@ end
 
 BEDmode(bytevector::Vector{UInt8}) = BEDmode(bytevector[3])
 
+function getbytemap{T}(navalue::T)
+    # navalue === Consts.NA_byte && return Consts.bytetoquarters
+
+    quartermap = (convert(T, 0b10), navalue, convert(T, 0b01), convert(T, 0b00))
+    bytemap = [[rawformat(snp1, quartermap), rawformat(snp2, quartermap),
+                rawformat(snp3, quartermap), rawformat(snp4, quartermap)] for
+               snp4 in 0b00:0b11 for
+               snp3 in 0b00:0b11 for
+               snp2 in 0b00:0b11 for
+               snp1 in 0b00:0b11]
+
+    bytemap
+end
 
 """
     unsafe_breakbyte!(vector::AbstractArray, byte::UInt8, bytemap=bytetoquarters, vecstart=1, quarterstart=1, quarterstop=4)
@@ -176,19 +189,24 @@ end
 ######################### Reading .bed into a Matrix #########################
 
 """
-    BEDintomatrix{T<:Real}(bedfilename::AbstractString, ::Type{T}=UInt8, n::Integer=0, p::Integer=0; use_mmap=true)
+    BEDintomatrix{T<:Real}(bedfilename::AbstractString; datatype::Type{T}=UInt8, navalue=NA_byte, n::Integer=0, p::Integer=0, use_mmap=true)
 
 Returns a `Matrix{T}` representation of the BED file `bedfilename`. If
 the number or rows and columns, `n` and `p`, are not provided, then
 they will attempt to be determined from corresponding .fam and .bim
 files. `use_mmap` determines whether to memory map the bedfile and
-then read into the matrix for potential speedups.
+then read into the matrix for potential speedups. Missing values are
+set to `navalue`.
 
 """
-function BEDintomatrix{T<:Real}(bedfilename::AbstractString, ::Type{T}=UInt8, n::Integer=0, p::Integer=0; use_mmap=true)
-    n == p == 0 && !endswith(bedfilename, ".bed") && error("Need .bed file extension or dimensions n and p provided")
+function BEDintomatrix{T<:Real}(bedfilename::AbstractString; datatype::Type{T}=UInt8, navalue=NA_byte, n::Integer=0, p::Integer=0, use_mmap=true)
+    if !isfile(bedfilename)
+        isfile(bedfilename*".bed") || error("Cannot find file \"$bedfilename\"")
+        bedfilename = bedfilename*".bed"
+    end
+    filebase = splitext(bedfilename)[1]
+
     if n == p == 0
-        filebase = splitext(bedfilename)[1]
         n, p = BEDsize(filebase)
     end
 
@@ -202,48 +220,52 @@ function BEDintomatrix{T<:Real}(bedfilename::AbstractString, ::Type{T}=UInt8, n:
             BEDmode(bvec) == :SNPmajor || error("SNPminor mode not supported")
             bvec
         end
-        BEDintomatrix!(A, bedfilevector)
+        BEDintomatrix!(A, bedfilevector, convert(T, navalue))
     else
         open(bedfilename, "r") do bedfin
             checkmagic(bedfin)
             BEDmode(bedfin) == :SNPmajor || error("SNPminor mode not supported")
 
-            BEDintomatrix!(A, bedfin)
+            BEDintomatrix!(A, bedfin, convert(T, navalue))
         end
     end
 
     return A::Matrix{T}
 end
 
-function BEDintomatrix!{T<:Real}(A::AbstractMatrix{T}, bedvector::Vector{UInt8})
+function BEDintomatrix!{T<:Real}(A::AbstractMatrix{T}, bedvector::Vector{UInt8}, navalue=NA_byte)
     n, p = size(A)
     byteheight = ceil(Int, n/4)
     quarterstop = n - 4*(byteheight - 1)
 
+    bytemap = getbytemap(convert(T, navalue))
+
     @inbounds for col in 1:p
-        unsafe_copybytestosnps!(A, bedvector, byteheight*(col - 1) + 3 + 1, 1, byteheight*col + 3, quarterstop, n*(col - 1) + 1)
+        unsafe_copybytestosnps!(A, bedvector, byteheight*(col - 1) + 3 + 1, 1, byteheight*col + 3, quarterstop, n*(col - 1) + 1, bytemap)
     end
 
     return A
 end
 
 """
-    BEDintomatrix!{T<:Real}(A::AbstractMatrix{T}, bedstream::IO)
+    BEDintomatrix!{T<:Real}(A::AbstractMatrix{T}, bedstream::IO, navalue=NA_byte)
 
 Fills `A` with type `T` representation of `bedstream` that corresponds
 to .bed file format. `A` must have correct dimensions, as determined
 via `BEDMatrices.BEDsize`, for example.
 
 """
-function BEDintomatrix!{T<:Real}(A::AbstractMatrix{T}, bedstream::IO)
+function BEDintomatrix!{T<:Real}(A::AbstractMatrix{T}, bedstream::IO, navalue=NA_byte)
     n, p = size(A)
     bytestop = ceil(Int, n/4)
     quarterstop = n - 4*(bytestop - 1)
 
+    bytemap = getbytemap(convert(T, navalue))
+
     bytecol = Vector{UInt8}(bytestop)
     @inbounds for col in 1:p
         read!(bedstream, bytecol)
-        unsafe_copybytestosnps!(A, bytecol, 1, 1, bytestop, quarterstop, n*(col - 1) + 1)
+        unsafe_copybytestosnps!(A, bytecol, 1, 1, bytestop, quarterstop, n*(col - 1) + 1, bytemap)
     end
 
     return A
@@ -291,13 +313,7 @@ immutable BEDMatrix{T, S<:AbstractMatrix} <: DenseArray{T, 2}
         length(colnames) == p || throw(DimensionMismatch("colnames has incorrect length"))
         length(rownames) == n || throw(DimensionMismatch("rownames has incorrect length"))
 
-        quartermap = (convert(T, 0b10), navalue, convert(T, 0b01), convert(T, 0b00))
-        bytemap = [[rawformat(snp1, quartermap), rawformat(snp2, quartermap),
-                    rawformat(snp3, quartermap), rawformat(snp4, quartermap)] for
-                        snp4 in 0b00:0b11 for
-                        snp3 in 0b00:0b11 for
-                        snp2 in 0b00:0b11 for
-                        snp1 in 0b00:0b11]
+        bytemap = getbytemap(navalue)
 
         return new(n, p, X, navalue, path, colnames, rownames,
                    byteheight, lastrowheight, bytemap)

@@ -27,7 +27,7 @@ const NA_byte = 0b11
 const quarterstohuman = (0b10, NA_byte, 0b01, 0b00)
 
 """
-    const bytetoquarters::Vector{Vector{UInt8}}
+    const bytetoquarters::Tuple{Tuple{UInt8,UInt8,UInt8,UInt8}, ...}
 
 A constant array storing all 256 bytes split into 4 quarters. Note
 that the mapping is given by `bytetoquarters[BEDbyte + 1]` because of
