@@ -264,11 +264,11 @@ end
     @testset "BEDdot" begin
         v = collect(1:50)
         for col1 in 20:30
-            @test BEDdot(view(bed, :, col1), v) == dot(map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, bed[:, col1]), v)
-            @test BEDdot(v, view(bed, :, col1)) == dot(map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, bed[:, col1]), v)
+            @test BEDdot(view(bed, :, col1), v) == dot(map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, exampledata[:, col1]), v)
+            @test BEDdot(v, view(bed, :, col1)) == dot(map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, exampledata[:, col1]), v)
             for col2 in 31:36
-                @test BEDdot(view(bed, :, col1), view(bed, :, col2)) == dot(map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, bed[:, col1]),
-                                                                            map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, bed[:, col2]))
+                @test BEDdot(view(bed, :, col1), view(bed, :, col2)) == dot(map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, exampledata[:, col1]),
+                                                                            map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, exampledata[:, col2]))
             end
         end
     end
@@ -278,18 +278,42 @@ end
         for col1 in 20:30
             @test column_dot(bed, col1, v) == dot(map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, bed[:, col1]), v)
             for col2 in 26:30
-                @test column_dot(bed, col1, col2) == dot(map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, bed[:, col1]),
-                                                         map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, bed[:, col2]))
+                @test column_dot(bed, col1, col2) == dot(map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, exampledata[:, col1]),
+                                                         map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, exampledata[:, col2]))
             end
         end
     end
 
-   @testset "column_NAsup_dot" begin
-       v = collect(1:50)
-       for col in 1:20
-           @test column_NAsup_dot(bed, col, v) == dot(map(e -> e === BEDMatrices.NA_byte ? one(e) : zero(e), bed[:, col]), v)
-       end
+    @testset "column_dist" begin
+        for col in 21:40
+            dist = BEDMatrices.column_dist(bed, col)
+            @test dist[1] == count(e -> e == 0, exampledata[:, col])
+            @test dist[2] == count(e -> e == 1, exampledata[:, col])
+            @test dist[3] == count(e -> e == 2, exampledata[:, col])
+            @test dist[4] == count(e -> e === BEDMatrices.NA_byte, exampledata[:, col])
+        end
     end
+
+    @testset "column_dist_dot" begin
+        v = collect(1:50)
+        for col in 21:40
+            distdot = BEDMatrices.column_dist_dot(bed, col, v)
+            @test distdot[1] == count(e -> e == 0, exampledata[:, col])
+            @test distdot[2] == count(e -> e == 1, exampledata[:, col])
+            @test distdot[3] == count(e -> e == 2, exampledata[:, col])
+            @test distdot[4] == count(e -> e === BEDMatrices.NA_byte, exampledata[:, col])
+            @test distdot[5] == dot(map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, exampledata[:, col]), v)
+            @test distdot[6] == dot(map(e -> e === BEDMatrices.NA_byte ? one(e) : zero(e), exampledata[:, col]), v)
+        end
+    end
+
+    @testset "column_NAsup_dot" begin
+        v = collect(1:50)
+        for col in 1:20
+            @test column_NAsup_dot(bed, col, v) == dot(map(e -> e === BEDMatrices.NA_byte ? one(e) : zero(e), exampledata[:, col]), v)
+        end
+    end
+
 
     @testset "sumabs2" begin
         for col in 1:20

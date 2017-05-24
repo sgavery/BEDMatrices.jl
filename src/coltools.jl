@@ -783,6 +783,54 @@ function column_NAsup_dot{T, S}(B::BEDMatrix{T, S}, col::Integer, v::AbstractArr
 end
 
 """
+    column_dist_dot{T, S}(B::BEDMatrix{T, S}, col::Integer, v::AbstractArray)
+
+Find everything a body needs to do univariate regression in a single
+pass over `B[:, col]`. Returns
+`(zero_count, one_count, two_count, na_count, dotsum, nasum)`.
+
+"""
+function column_dist_dot{T, S}(B::BEDMatrix{T, S}, col::Integer, v::AbstractArray)
+    @boundscheck B.n == length(v) || throw(DimensionMismatch("v has incorrect length"))
+
+    X = B.X
+    dotsum = zero(promote_type(T, eltype(v), Int))  # Avoid overflow when T == UInt8
+    nasum = zero(promote_type(T, eltype(v), Int))
+
+    zero_count = 0
+    one_count = 0
+    two_count = 0
+    na_count = 0
+
+    nbytes = B._byteheight
+    lastquarterstop = B._lastrowSNPheight
+
+    @inbounds begin
+        for x in 1:(nbytes - 1)
+            dotsum += bytedot(X[x, col], v, 4*(x-1))
+            nasum += byteNAsum(X[x, col], v, 4*(x-1))
+
+            bdist = bytedist(X[x, col])
+            zero_count += bdist[1]
+            one_count += bdist[2]
+            two_count += bdist[3]
+            na_count += bdist[4]
+        end
+
+        dotsum += bytedot(X[nbytes, col], v, 4*(nbytes - 1), lastquarterstop)
+        nasum += byteNAsum(X[nbytes, col], v, 4*(nbytes - 1), lastquarterstop)
+
+        bdist = bytedist(X[nbytes, col], lastquarterstop)
+        zero_count += (bdist[1] - 4 + lastquarterstop)
+        one_count += bdist[2]
+        two_count += bdist[3]
+        na_count += bdist[4]
+    end
+
+    (zero_count, one_count, two_count, na_count, dotsum, nasum)
+end
+
+"""
     column_mean(B::BEDMatrix, col::Integer, rows=(:))
 
 Returns the mean of `B[rows, col]`, skipping missing values.
