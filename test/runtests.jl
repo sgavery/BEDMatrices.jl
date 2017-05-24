@@ -284,6 +284,13 @@ end
         end
     end
 
+   @testset "column_NAsup_dot" begin
+       v = collect(1:50)
+       for col in 1:20
+           @test column_NAsup_dot(bed, col, v) == dot(map(e -> e === BEDMatrices.NA_byte ? one(e) : zero(e), bed[:, col]), v)
+       end
+    end
+
     @testset "sumabs2" begin
         for col in 1:20
             @test sumabs2(view(bed, :, col)) == sum(e -> e === BEDMatrices.NA_byte ? zero(e) : abs2(e), exampledata[:, col])

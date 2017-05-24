@@ -60,13 +60,14 @@ const bytetoquarters = tuple([(quarterstohuman[snp1 + 1], quarterstohuman[snp2 +
 ### BED byte to RAW math
 const onebyte = 0b10_10_10_10  # vector of ones in RAW format
 
-const partialbytemasks = [bytemask(numq, qoff) for numq in 1:4, qoff in 0:3]
+const partialbytemasks = [bytemask(numq, qoff) for numq in 1:4, qoff in 0:3]  # tuple?
 # const partialbytemasks = [BEDMatrices.bytemask(numq, qoff) for numq in 1:4, qoff in 0:3]
 
 const inversebytemap = Dict(bytetoquarters[b + 1] => b for b in 0x0:0xff)
-const natozeromap = [inversebytemap[map(q -> q == NA_byte ? 0b0 : q, bytetoquarters[b + 1])] for b in 0x0:0xff]
+const natozeromap = [inversebytemap[map(q -> q == NA_byte ? 0b00 : q, bytetoquarters[b + 1])] for b in 0x0:0xff]  # tuple?
+const na_sup_map = [inversebytemap[map(q -> q == NA_byte ? 0b01 : 0b00, bytetoquarters[b + 1])] for b in 0x0:0xff]  # tuple?
 
-const nacountmap = [count(q -> q === NA_byte, bytetoquarters[b + 1]) for b in 0x0:0xff]
+const nacountmap = [count(q -> q === NA_byte, bytetoquarters[b + 1]) for b in 0x0:0xff]  # tuple?
 const distributionmap = tuple(map(b -> (count(q -> q === 0b00, bytetoquarters[b + 1]),
                                         count(q -> q === 0b01, bytetoquarters[b + 1]),
                                         count(q -> q === 0b10, bytetoquarters[b + 1]),

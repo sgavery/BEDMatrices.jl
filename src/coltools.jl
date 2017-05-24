@@ -38,6 +38,18 @@ function zeroNAs(bedbyte::UInt8)
 end
 
 """
+    NAsup(bedbyte::UInt8)
+
+Returns `bedbyte` in BED with all non-missing quarters set to (RAW
+format) `0b00`, and missing quarters set to `0b01`. Roughly the
+complement of zeroNAs.
+
+"""
+function NAsup(bedbyte::UInt8)
+    @inbounds return Consts.na_sup_map[bedbyte + 1]
+end
+
+"""
     countNAs(bedbyte::UInt8)
 
 Returns the number of missing values in `bedbyte`.
@@ -103,6 +115,25 @@ function bytedot{T}(byte::UInt8, v::AbstractArray{T}, voffset::Integer, num_quar
     dotsum
 end
 
+"""
+    byteNAsum(bedbyte::UInt8, v::AbstractArray, voffset::Integer=0, num_quarters::Integer=4, qoffset::Integer=0)
+
+Return RAW format dot product of the NA support of
+`byte[(qoffset + 1):(num_quarters + qoffset)]` in BED format with
+`v[(voffset + 1):(voffset + num_quarters)]`. Missing values (in `bedbyte`) are
+set to unity and all other entries to zero. That is to say, this is the sum of
+elements of `v` for which corresponding quarters of `bedbyte` are missing.
+
+"""
+byteNAsum(bedbyte::UInt8, v::AbstractArray, voffset::Integer=0) = bytedot(NAsup(bedbyte), v, voffset)
+function byteNAsum(bedbyte::UInt8, v::AbstractArray, voffset::Integer, num_quarters::Integer, qoffset::Integer=0)
+    @boundscheck begin
+        num_quarters + qoffset <= 4 || error("too many quarters")
+        checkbounds(v, voffset + num_quarters)
+    end
+
+    @inbounds return bytedot(NAsup(bedbyte), v, voffset, num_quarters, qoffset)
+end
 
 function byteabs2(b::UInt8)
     @inbounds return Consts.bytebytemulttable[b + 1, b + 1]
@@ -736,6 +767,20 @@ function column_dot{T, S, U, R}(BL::BEDMatrix{T, S}, colL::Integer, BR::BEDMatri
     dotsum
 end
 
+function column_NAsup_dot{T, S}(B::BEDMatrix{T, S}, col::Integer, v::AbstractArray)
+    @boundscheck B.n == length(v) || throw(DimensionMismatch("v has incorrect length"))
+
+    X = B.X
+    dotsum = zero(promote_type(T, eltype(v), Int))  # Avoid overflow when T == UInt8
+    nbytes = B._byteheight
+
+    @simd for x in 1:(nbytes - 1)
+        @inbounds dotsum += byteNAsum(X[x, col], v, 4*(x-1))
+    end
+    @inbounds dotsum += byteNAsum(X[nbytes, col], v, 4*(nbytes - 1), B._lastrowSNPheight)
+
+    dotsum
+end
 
 """
     column_mean(B::BEDMatrix, col::Integer, rows=(:))

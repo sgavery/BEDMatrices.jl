@@ -21,9 +21,23 @@ const NA_byte = Consts.NA_byte
 include("bedmatrix.jl")
 include("coltools.jl")
 
-export BEDintomatrix, BEDintomatrix!, BEDMatrix, path, rownames,
-    colnames, NArep, hasNAs, countNAs, BEDdot, column_dist, column_sum,
-    column_dot, column_sumabs2, column_norm, column_mean_and_std,
+export BEDintomatrix,
+    BEDintomatrix!,
+    BEDMatrix,
+    path,
+    rownames,
+    colnames,
+    NArep,
+    hasNAs,
+    countNAs,
+    BEDdot,
+    column_dist,
+    column_sum,
+    column_dot,
+    column_NAsup_dot,
+    column_sumabs2,
+    column_norm,
+    column_mean_and_std,
     column_mean_and_var
 
 end
