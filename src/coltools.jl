@@ -135,6 +135,36 @@ function byteNAsum(bedbyte::UInt8, v::AbstractArray, voffset::Integer, num_quart
     @inbounds return bytedot(NAsup(bedbyte), v, voffset, num_quarters, qoffset)
 end
 
+function byteNAsum2{T}(bedbyte::UInt8, v::AbstractArray{T}, voffset::Integer=0)
+    @boundscheck checkbounds(v, voffset + 4)
+
+    dotsum = zero(T)
+    quarters = breakbyte(NAsup(bedbyte))
+
+    for j in 1:4
+        @inbounds dotsum += quarters[j]*abs2(v[j + voffset])
+    end
+
+    dotsum
+end
+
+function byteNAsum2{T}(bedbyte::UInt8, v::AbstractArray{T}, voffset::Integer, num_quarters::Integer, qoffset::Integer=0)
+    @boundscheck begin
+        num_quarters + qoffset <= 4 || error("too many quarters")
+        checkbounds(v, voffset + num_quarters)
+    end
+
+    quarters = breakbyte(NAsup(bedbyte))
+    dotsum = zero(T)
+
+    for j in 1:num_quarters
+        @inbounds dotsum += quarters[j + qoffset]*abs2(v[j + voffset])
+    end
+
+    dotsum
+end
+
+
 function byteabs2(b::UInt8)
     @inbounds return Consts.bytebytemulttable[b + 1, b + 1]
 end
@@ -796,6 +826,7 @@ function column_dist_dot{T, S}(B::BEDMatrix{T, S}, col::Integer, v::AbstractArra
     X = B.X
     dotsum = zero(promote_type(T, eltype(v), Int))  # Avoid overflow when T == UInt8
     nasum = zero(promote_type(T, eltype(v), Int))
+    nasum2 = zero(promote_type(T, eltype(v), Int))
 
     zero_count = 0
     one_count = 0
@@ -809,6 +840,7 @@ function column_dist_dot{T, S}(B::BEDMatrix{T, S}, col::Integer, v::AbstractArra
         for x in 1:(nbytes - 1)
             dotsum += bytedot(X[x, col], v, 4*(x-1))
             nasum += byteNAsum(X[x, col], v, 4*(x-1))
+            nasum2 += byteNAsum2(X[x, col], v, 4*(x-1))
 
             bdist = bytedist(X[x, col])
             zero_count += bdist[1]
@@ -819,6 +851,7 @@ function column_dist_dot{T, S}(B::BEDMatrix{T, S}, col::Integer, v::AbstractArra
 
         dotsum += bytedot(X[nbytes, col], v, 4*(nbytes - 1), lastquarterstop)
         nasum += byteNAsum(X[nbytes, col], v, 4*(nbytes - 1), lastquarterstop)
+        nasum2 += byteNAsum2(X[nbytes, col], v, 4*(nbytes - 1), lastquarterstop)
 
         bdist = bytedist(X[nbytes, col], lastquarterstop)
         zero_count += (bdist[1] - 4 + lastquarterstop)
@@ -827,7 +860,7 @@ function column_dist_dot{T, S}(B::BEDMatrix{T, S}, col::Integer, v::AbstractArra
         na_count += bdist[4]
     end
 
-    (zero_count, one_count, two_count, na_count, dotsum, nasum)
+    (zero_count, one_count, two_count, na_count, dotsum, nasum, nasum2)
 end
 
 """

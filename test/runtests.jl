@@ -304,6 +304,7 @@ end
             @test distdot[4] == count(e -> e === BEDMatrices.NA_byte, exampledata[:, col])
             @test distdot[5] == dot(map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, exampledata[:, col]), v)
             @test distdot[6] == dot(map(e -> e === BEDMatrices.NA_byte ? one(e) : zero(e), exampledata[:, col]), v)
+            @test distdot[7] == dot(map(e -> e === BEDMatrices.NA_byte ? one(e) : zero(e), exampledata[:, col]), v.^2)
         end
     end
 
