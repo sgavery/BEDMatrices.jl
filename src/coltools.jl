@@ -230,8 +230,8 @@ typealias BEDColumn{T, K <: BEDMatrix} Column{T, K, false}
 typealias ColumnUnitRange{T, K, R <: Union{AbstractUnitRange, Colon}, B} SubArray{T, 1, K, Tuple{R, Int}, B}
 typealias BEDColumnUnitRange{T, K <: BEDMatrix, R <: Union{AbstractUnitRange, Colon}} ColumnUnitRange{T, K, R, false}
 
-typealias SubColumn{T, K, J, B} SubArray{T, 1, J, Tuple{J, Int}, B}
-typealias BEDSubColumn{T, K <: BEDMatrix, J, B} SubArray{T, 1, J, Tuple{J, Int}, B}
+typealias SubColumn{T, K, J, B} SubArray{T, 1, K, Tuple{J, Int}, B}
+typealias BEDSubColumn{T, K <: BEDMatrix, J, B} SubArray{T, 1, K, Tuple{J, Int}, B}
 
 # Strictly two dimensional view of BEDMatrix
 typealias BEDSubMatrix{T, K <: BEDMatrix, R} SubArray{T, 2, K, R, false}
