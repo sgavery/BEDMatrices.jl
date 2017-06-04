@@ -179,28 +179,47 @@ end
 
         v = view(bed, :, 1)
         w = view(bed, 1:25, 1)
+        x = view(bed, [1, 2, 5], 1)
+
         u = view(m, :, 1)
         t = view(m, 1:4, 1)
-
-        @test isa(w, BEDMatrices.Column) == false
-        @test isa(w, BEDMatrices.ColumnUnitRange) == true
-        @test isa(w, BEDMatrices.BEDColumn) == false
-        @test isa(w, BEDMatrices.BEDColumnUnitRange) == true
+        s = view(m, [1, 2, 5], 1)
 
         @test isa(v, BEDMatrices.Column) == true
         @test isa(v, BEDMatrices.ColumnUnitRange) == true
         @test isa(v, BEDMatrices.BEDColumn) == true
         @test isa(v, BEDMatrices.BEDColumnUnitRange) == true
+        @test isa(v, BEDMatrices.BEDSubColumn) == true
+
+        @test isa(w, BEDMatrices.Column) == false
+        @test isa(w, BEDMatrices.ColumnUnitRange) == true
+        @test isa(w, BEDMatrices.BEDColumn) == false
+        @test isa(w, BEDMatrices.BEDColumnUnitRange) == true
+        @test isa(w, BEDMatrices.BEDSubColumn) == true
+
+        @test isa(x, BEDMatrices.Column) == false
+        @test isa(x, BEDMatrices.ColumnUnitRange) == false
+        @test isa(x, BEDMatrices.BEDColumn) == false
+        @test isa(x, BEDMatrices.BEDColumnUnitRange) == false
+        @test isa(x, BEDMatrices.BEDSubColumn) == true
 
         @test isa(u, BEDMatrices.Column) == true
         @test isa(u, BEDMatrices.ColumnUnitRange) == true
         @test isa(u, BEDMatrices.BEDColumn) == false
         @test isa(u, BEDMatrices.BEDColumnUnitRange) == false
+        @test isa(u, BEDMatrices.BEDSubColumn) == false
 
         @test isa(t, BEDMatrices.Column) == false
         @test isa(t, BEDMatrices.ColumnUnitRange) == true
         @test isa(t, BEDMatrices.BEDColumn) == false
         @test isa(t, BEDMatrices.BEDColumnUnitRange) == false
+        @test isa(t, BEDMatrices.BEDSubColumn) == false
+
+        @test isa(s, BEDMatrices.Column) == false
+        @test isa(s, BEDMatrices.ColumnUnitRange) == false
+        @test isa(s, BEDMatrices.BEDColumn) == false
+        @test isa(s, BEDMatrices.BEDColumnUnitRange) == false
+        @test isa(s, BEDMatrices.BEDSubColumn) == false
     end
 
     @testset "hasNAs" begin
