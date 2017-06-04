@@ -20,6 +20,7 @@ const NA_byte = Consts.NA_byte
 
 include("bedmatrix.jl")
 include("coltools.jl")
+include("gwas.jl")
 
 export BEDintomatrix,
     BEDintomatrix!,
@@ -38,6 +39,8 @@ export BEDintomatrix,
     column_sumabs2,
     column_norm,
     column_mean_and_std,
-    column_mean_and_var
+    column_mean_and_var,
+    GWAS,
+    gwas_writecsv
 
 end
