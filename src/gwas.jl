@@ -29,7 +29,7 @@ function tTestpvalue(t::Real, dof::Real)
 end
 
 immutable UnivariateOLSFit
-    varname::String
+    column::Int
     n::Int
     y0::Float64
     β::Float64
@@ -39,7 +39,7 @@ immutable UnivariateOLSFit
     pval::Float64
 end
 
-varname(fit::UnivariateOLSFit) = fit.varname
+colno(fit::UnivariateOLSFit) = fit.column
 npoints(fit::UnivariateOLSFit) = fit.n
 ndof(fit::UnivariateOLSFit) = fit.n - 2
 intercept(fit::UnivariateOLSFit) = fit.y0
@@ -48,16 +48,29 @@ stderr(fit::UnivariateOLSFit) = fit.se
 tvalue(fit::UnivariateOLSFit) = fit.t
 pvalue(fit::UnivariateOLSFit) = fit.pval
 
-function gwas_writecsv(fout::IO, fits::Vector{UnivariateOLSFit}; header::Bool=true, labels::Bool=true)
+function Base.show(io::IO, fit::BEDMatrices.UnivariateOLSFit)
+    # print(io, "(", fit.varname, ", ", fit.n, ", ", fit.y0, ", ", fit.β, ", ", fit.pval, ")")
+    print(io, "col. ", colno(fit), ": ", "y = ", intercept(fit), ifelse(coef(fit) > 0, " + ", " - "), abs(coef(fit)), "*x", "; p = ", pvalue(fit))
+end
+
+function Base.show(io::IO, ::MIME"text/plain", fit::BEDMatrices.UnivariateOLSFit)
+    print(io, "BEDMatrices.UnivariateOLSFit:\n")
+    label = string("column ", colno(fit), " with ", npoints(fit), " entries\n")
+    print(io, "  ", label)
+    print(io, "  intercept: ", fit.y0, "\tslope: ", fit.β, "\n")
+    print(io, "  std err: ", fit.se, "\tp-value: ", fit.pval)
+end
+
+function gwas_writecsv(fout::IO, fits::Vector{UnivariateOLSFit}; header::Bool=true, labels::Vector{String}=Vector{String}(0))
     if header
-        if labels
+        if length(labels) > 0
             write(fout, "\"snp_id\",")
         end
         write(fout, "\"coef\",", "\"std err\",", "\"t-value\",", "\"Pr(>|t|)\"\n")
     end
-    if labels
+    if length(labels) > 0
         for fit in fits
-            write(fout, "\"", varname(fit), "\",", string(coef(fit)), ",", string(stderr(fit)), ",", string(tvalue(fit)), ",", string(pvalue(fit)), "\n")
+            @inbounds write(fout, "\"", labels[colno(fit)], "\",", string(coef(fit)), ",", string(stderr(fit)), ",", string(tvalue(fit)), ",", string(pvalue(fit)), "\n")
         end
     else
         for fit in fits
@@ -67,14 +80,15 @@ function gwas_writecsv(fout::IO, fits::Vector{UnivariateOLSFit}; header::Bool=tr
 end
 
 """
-    gwas_writecsv(file, fits::Vector{UnivariateOLSFit}; header::Bool=true, labels::Bool=true)
+    gwas_writecsv(file, fits::Vector{UnivariateOLSFit}; header::Bool=true, labels::Vector{String}=Vector{String}(0))
 
 Writes `fits` to `file` in CSV format. `file` may either be a filename
-or a writeable `IO`. `header` and `labels` determine whether a header
-and SNP labels are written to `file`, respectively.
+or a writeable `IO`. `header` determine whether a header is written to
+`file`. `labels` should be a list of labels for the fits; otherwise
+omitted.
 
 """
-function gwas_writecsv(filename::AbstractString, fits::Vector{UnivariateOLSFit}; header::Bool=true, labels::Bool=true)
+function gwas_writecsv(filename::AbstractString, fits::Vector{UnivariateOLSFit}; header::Bool=true, labels::Vector{String}=Vector{String}(0))
     open(filename, "w") do fout
         gwas_writecsv(fout, fits; header=header, labels=labels)
     end
@@ -93,18 +107,17 @@ function _column_olsfit{T}(B::BEDMatrix, col::Integer, y::Vector{T}, ybar::T, y2
     @inbounds begin
         N_zeros, N_ones, N_twos, N_nas, x_y, nasup_y, nasup_y2 = BEDMatrices.column_dist_dot(B, col, y)
         ntot = n = B.n
-        snp_name = colnames(B)[col]
 
         if N_nas > 0  # there are missing values
             # adjust n
             n -= N_nas
 
-            # insufficient data for a fit
-            n < 2 && return UnivariateOLSFit(snp_name, n, ybar, 0.0, 0.0, 0.0, 1.0)
-
             # adjust ybar and y2 to the sample
             ybar = (ntot*ybar - nasup_y)/n
             y2 = y2 - nasup_y2
+
+            # insufficient data for a fit
+            n < 2 && return UnivariateOLSFit(col, n, ybar, 0.0, 0.0, 0.0, 1.0)
         end
 
         xsum = N_ones + 2*N_twos
@@ -125,7 +138,7 @@ function _column_olsfit{T}(B::BEDMatrix, col::Integer, y::Vector{T}, ybar::T, y2
         pval = tTestpvalue(t, n - 2)
     end
 
-    return UnivariateOLSFit(snp_name, n, y0, β, se, t, pval)
+    return UnivariateOLSFit(col, n, y0, β, se, t, pval)
 end
 
 function column_olsfit(B::BEDMatrix, col::Integer, y::AbstractArray)
@@ -162,16 +175,27 @@ function mt_column_olsfit(B::BEDMatrix, y::AbstractArray)
         length(y) == size(B, 1) || throw(DimensionMismatch("vector must have same length as size(B, 1)"))
     end
 
-    ybar = mean(y)
-    y2 = dot(y, y)
+    ybar::Float64 = mean(y)
+    y2 = convert(Float64, dot(y, y))
 
     gwas_results = Vector{UnivariateOLSFit}(B.p)
 
-    Threads.@threads for col in 1:B.p
-        @inbounds gwas_results[col] = _column_olsfit(B, col, y, ybar, y2)
-    end
+    # @inbounds Threads.@threads for col::Int in 1:B.p
+    #     gwas_results[col] = _column_olsfit(B, col, y, ybar, y2)
+    # end
+    _mt_fill_gwas!(gwas_results, B, y, ybar, y2)
 
     return gwas_results
+end
+
+# workaround for https://github.com/JuliaLang/julia/issues/15276, and https://github.com/JuliaLang/julia/issues/17395, https://github.com/yuyichao/explore/blob/8d52fb6caa745a658f2c9bbffd3b0f0fe4a2cc48/julia/issue-17395/scale.jl#L21
+@noinline function _mt_fill_gwas!(results, B::BEDMatrix, y::AbstractArray, ybar, y2)
+    @inbounds begin
+        Threads.@threads for col in 1:B.p
+            results[col] = _column_olsfit(B, col, y, ybar, y2)
+        end
+    end
+    results
 end
 
 function mp_column_olsfit(B::BEDMatrix, y::AbstractArray)
@@ -223,7 +247,7 @@ function GWAS(B::BEDMatrix, y::AbstractArray; mode::Symbol=:multithreaded, outfi
     results = mode === :single ? st_column_olsfit(B, y) : (mode === :multithreaded ? mt_column_olsfit(B, y) : mp_column_olsfit(B, y))
 
     if outfile !== DevNull
-        gwas_writecsv(outfile, results)
+        gwas_writecsv(outfile, results, labels=colnames(B))
     end
 
     results
