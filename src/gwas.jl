@@ -252,3 +252,125 @@ function GWAS(B::BEDMatrix, y::AbstractArray; mode::Symbol=:multithreaded, outfi
 
     results
 end
+
+
+##################################################
+# For general ::Matrix (not ::BEDMatrix)
+function mean_impute!{T}(M::Matrix{T}, na::T)
+    n, p = size(M)
+
+    z = zero(T)
+    μ = z/one(T)
+
+    na_inds = fill(0, n)
+
+    @inbounds begin
+        for col in indices(M, 2)
+            # set up
+            total = z
+            na_count = 0
+
+            # find NAs and total on non-NAs
+            for row in indices(M, 1)
+                x = M[row, col]
+                if x === na
+                    na_count += 1
+                    na_inds[na_count] = row
+                else
+                    total += x
+                end
+            end
+
+            # replace NAs with mean
+            μ = total/(n - na_count)
+            for na_idx in 1:na_count
+                M[na_inds[na_idx], col] = μ
+
+                # clean up as we go
+                na_inds[na_idx] = 0
+            end
+        end
+    end
+
+    M
+end
+
+function _matrix_column_covvar{T}(M::Matrix{T}, col::Integer, y::AbstractArray, na::T)
+    @inbounds begin
+        na_count = 0
+        xsum = zero(M[1, col])
+        x2 = xsum
+        ysum = zero(y[1])
+        y2 = ysum
+        x_y = zero(M[1, col]*y[1])
+        for row in indices(M, 1)
+            x = M[row, col]
+
+            if x === na
+                na_count += 1
+            else
+                xsum += x
+                x2 += abs2(x)
+                ysum += y[row]
+                y2 += abs2(y)
+                x_y += x*y[row]
+            end
+        end
+    end
+    return na_count, xsum, ysum, x2, y2, x_y
+end
+
+function _matrix_column_olsfit{T}(M::Matrix{T}, col::Integer, y::AbstractArray, n::Integer, na::T)
+    @inbounds begin
+        na_count, xsum, ysum, x2, y2, x_y = _matrix_column_covvar(M, col, y, na)
+        n = size(M, 1) - na_count
+        n < 2 && return UnivariateOLSFit(col, n, ysum/n, 0.0, 0.0, 0.0, 1.0)
+
+        numerator = n*x_y - xsum*ysum
+        denominator = n*x2 - abs2(xsum)
+
+        β = numerator/denominator
+        y0 = (ysum - β*xsum)/n
+
+        R2 = y2 - n*abs2(ybar) - β*numerator/n
+        se = sqrt(R2/((n-2)*denominator))
+        t = β/se
+        pval = tTestpvalue(t, n - 2)
+    end
+
+    return UnivariateOLSFit(col, n, y0, β, se, t, pval)
+end
+
+function st_matrix_column_olsfit(M::Matrix, y::AbstractArray)
+    ybar = mean(y)
+    y2 = dot(y, y)
+
+    gwas_results = Vector{UnivariateOLSFit}(size(M, 2))
+
+    for col in 1:B.p
+        @inbounds gwas_results[col] = _matrix_column_olsfit(M, col, y, length(y), ybar, y2)
+    end
+
+    return gwas_results
+end
+
+function mt_matrix_column_olsfit(M::Matrix, y::AbstractArray)
+    n, p = size(M)
+    ybar = mean(y)
+    y2 = dot(y, y)
+
+    gwas_results = Vector{UnivariateOLSFit}(p)
+
+    _mt_matrix_fill_gwas!(gwas_results, M, y, n, p, ybar, y2)
+end
+
+@noinline function _mt_matrix_fill_gwas!(results, M, y, n, p, ybar, y2)
+    @inbounds begin
+        Threads.@threads for col in 1:p
+            results[col] = _matrix_column_olsfit(M, col, y, n, ybar, y2)
+        end
+    end
+
+    results
+end
+
