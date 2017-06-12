@@ -412,11 +412,11 @@ function column_dist(B::BEDMatrix, col::Integer, indices::AbstractVector{Bool})
 end
 
 # TODO: Compare performance of two approaches, and settle on heuristic
-function column_dist{T <: Integer}(B::BEDMatrix, col::Integer, indices::AbstractVector{T})
+function column_dist{T <: Integer}(B::BEDMatrix, col::Integer, inds::AbstractVector{T})
     # Heuristic for converting to contiguous ranges
     # move the constants 0.9 and 100 to constants.jl
-    if length(indices) > max(0.9*B.n, 100)
-        return column_dist(B, col, tocontiguous(indices))
+    if length(inds) > max(0.9*B.n, 100)
+        return column_dist(B, col, tocontiguous(inds))
     end
 
     zero_count = 0
@@ -424,7 +424,7 @@ function column_dist{T <: Integer}(B::BEDMatrix, col::Integer, indices::Abstract
     two_count = 0
     na_count = 0
     X = B.X
-    @inbounds for row in indices
+    @inbounds for row in inds
         byterow, snpind = rowtobytequarter(row)
         q = breakbyte(X[byterow, col])[snpind]
         if q === 0x00
@@ -813,55 +813,133 @@ function column_NAsup_dot{T, S}(B::BEDMatrix{T, S}, col::Integer, v::AbstractArr
 end
 
 """
-    column_dist_dot{T, S}(B::BEDMatrix{T, S}, col::Integer, v::AbstractArray)
+    column_dist_dot{T, S}(B::BEDMatrix{T, S}, col::Integer, v::AbstractArray, rows=(:))
 
 Find everything a body needs to do univariate regression in a single
 pass over `B[:, col]`. Returns
-`(zero_count, one_count, two_count, na_count, dotsum, nasum)`.
+`(zero_count, one_count, two_count, na_count, dotsum, nasum, na2sum)`.
 
 """
-function column_dist_dot{T, S}(B::BEDMatrix{T, S}, col::Integer, v::AbstractArray)
-    @boundscheck B.n == length(v) || throw(DimensionMismatch("v has incorrect length"))
+function column_dist_dot(B::BEDMatrix, col::Integer, v::AbstractArray, rrange::AbstractUnitRange)
+    bytestart, quarterstart = rowtobytequarter(first(rrange))
+    bytestop, quarterstop = rowtobytequarter(last(rrange))
 
-    X = B.X
-    dotsum = zero(promote_type(T, eltype(v), Int))  # Avoid overflow when T == UInt8
-    nasum = zero(promote_type(T, eltype(v), Int))
-    nasum2 = zero(promote_type(T, eltype(v), Int))
+    unsafe_column_dist_dot(B.X, col, bytestart, quarterstart, bytestop, quarterstop, v)
+end
+
+column_dist_dot(B::BEDMatrix, col::Integer, v::AbstractArray, ::Colon) = column_dist_dot(B, col, v)
+column_dist_dot(B::BEDMatrix, col::Integer, v::AbstractArray) = unsafe_column_dist_dot(B.X, col, 1, 1, B._byteheight, B._lastrowSNPheight, v)
+
+function column_dist_dot{T, S, R <: AbstractUnitRange}(B::BEDMatrix{T, S}, col::Integer, v::AbstractArray, ranges::Vector{R})
+    nasum = na2sum = dotsum = zero(promote_type(T, eltype(v), Int))
+    zero_count = one_count = two_count = na_count = 0
+
+    for rrange in ranges
+        counttup = column_dist_dot(B, col, v, rrange)
+        zero_count += counttup[1]
+        one_count += counttup[2]
+        two_count += counttup[3]
+        na_count += counttup[4]
+        dotsum += counttup[5]
+        nasum += counttup[6]
+        na2sum += counttup[7]
+    end
+
+    return (zero_count, one_count, two_count, na_count, dotsum, nasum, na2sum)
+end
+
+function column_dist_dot{T, S, R <: Integer}(B::BEDMatrix{T, S}, col::Integer, v::AbstractArray, inds::Vector{R})
+    nasum = na2sum = dotsum = zero(promote_type(T, eltype(v), Int))
 
     zero_count = 0
     one_count = 0
     two_count = 0
     na_count = 0
 
-    nbytes = B._byteheight
-    lastquarterstop = B._lastrowSNPheight
+    @inbounds for row in inds
+        x = B[row, col]
+        if x === NArep(B)
+            na_count += 1
+            nasum += v[row]
+            na2sum += abs2(v[row])
+        else
+            if x == 0
+                zero_count += 1
+            elseif x == 1
+                one_count += 1
+            elseif x == 2
+                two_count += 1
+            end
+            dotsum += x*v[row]
+        end
+    end
 
+    return (zero_count, one_count, two_count, na_count, dotsum, nasum, na2sum)
+end
+
+function unsafe_column_dist_dot(X::Matrix{UInt8}, col::Integer, bytestart::Integer, quarterstart::Integer, bytestop::Integer, quarterstop::Integer, v::AbstractArray)
+    zero_count = 0
+    one_count = 0
+    two_count = 0
+    na_count = 0
+    nasum = na2sum = dotsum = zero(promote_type(eltype(v), Int))
+
+    num_quarters = 0
     @inbounds begin
-        for x in 1:(nbytes - 1)
-            dotsum += bytedot(X[x, col], v, 4*(x-1))
-            nasum += byteNAsum(X[x, col], v, 4*(x-1))
-            nasum2 += byteNAsum2(X[x, col], v, 4*(x-1))
+        # First byte
+        if quarterstart > 1
+            num_quarters = ifelse(bytestop == bytestart, quarterstop - quarterstart + 1, 5 - quarterstart)
 
-            bdist = bytedist(X[x, col])
-            zero_count += bdist[1]
+            bdist = bytedist(X[bytestart, col], num_quarters, quarterstart - 1)
+            zero_count += (bdist[1] - 4 + num_quarters)  # correction for zeroed quarters
             one_count += bdist[2]
             two_count += bdist[3]
             na_count += bdist[4]
+
+            dotsum += bytedot(X[bytestart, col], v, 0, num_quarters, quarterstart - 1)
+            nasum += byteNAsum(X[bytestart, col], v, 0, num_quarters, quarterstart - 1)
+            na2sum += byteNAsum2(X[bytestart, col], v, 0, num_quarters, quarterstart - 1)
+
+            bytestart += 1
         end
 
-        dotsum += bytedot(X[nbytes, col], v, 4*(nbytes - 1), lastquarterstop)
-        nasum += byteNAsum(X[nbytes, col], v, 4*(nbytes - 1), lastquarterstop)
-        nasum2 += byteNAsum2(X[nbytes, col], v, 4*(nbytes - 1), lastquarterstop)
+        if bytestart <= bytestop
+            # Last byte
+            if quarterstop < 4
+                bdist = bytedist(X[bytestop, col], quarterstop)
+                zero_count += (bdist[1] - 4 + quarterstop)  # correction for zeroed quarters
+                one_count += bdist[2]
+                two_count += bdist[3]
+                na_count += bdist[4]
 
-        bdist = bytedist(X[nbytes, col], lastquarterstop)
-        zero_count += (bdist[1] - 4 + lastquarterstop)
-        one_count += bdist[2]
-        two_count += bdist[3]
-        na_count += bdist[4]
+                voffset = num_quarters + 4*(bytestop - bytestart)
+                dotsum += bytedot(X[bytestop, col], v, voffset, quarterstop)
+                nasum += byteNAsum(X[bytestop, col], v, voffset, quarterstop)
+                na2sum += byteNAsum2(X[bytestop, col], v, voffset, quarterstop)
+
+                bytestop -= 1
+            end
+
+            # Main course
+            @simd for x in bytestart:bytestop
+                byte = X[x, col]
+                bdist = bytedist(byte)
+                zero_count += bdist[1]
+                one_count += bdist[2]
+                two_count += bdist[3]
+                na_count += bdist[4]
+
+                voffset = 4*(x-1) + num_quarters
+                dotsum += bytedot(byte, v, voffset)
+                nasum += byteNAsum(byte, v, voffset)
+                na2sum += byteNAsum2(byte, v, voffset)
+            end
+        end
     end
 
-    (zero_count, one_count, two_count, na_count, dotsum, nasum, nasum2)
+    return zero_count, one_count, two_count, na_count, dotsum, nasum, na2sum
 end
+
 
 """
     column_mean(B::BEDMatrix, col::Integer, rows=(:))

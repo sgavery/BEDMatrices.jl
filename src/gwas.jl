@@ -94,8 +94,56 @@ function gwas_writecsv(filename::AbstractString, fits::Vector{UnivariateOLSFit};
     end
 end
 
+sub_mean(y::AbstractArray, ::Colon) = mean(y)
+
+function sub_mean{R <: AbstractUnitRange}(y::AbstractArray, rranges::Vector{R})
+    n = 0
+    acc = 0.0
+    for rrange in rranges
+        @simd for r in rrange
+            @inbounds acc += y[r]
+        end
+        n += length(rrange)
+    end
+
+    acc/n
+end
+function sub_mean(y::AbstractArray, rows)
+    acc = 0.0
+    @simd for r in rows
+        @inbounds acc += y[r]
+    end
+
+    acc/length(rows)
+end
+
+sub_dot(x, y, ::Colon) = dot(x, y)
+
+function sub_dot{R <: AbstractUnitRange}(x::AbstractArray, y::AbstractArray, rranges::Vector{R})
+    # @boundscheck
+    acc = 0.0
+    for rrange in rranges
+        @simd for r in rrange
+            @inbounds acc += x[r]*y[r]
+        end
+    end
+
+    acc
+end
+
+function sub_dot(x, y, rows)
+    # @boundscheck
+    acc = 0.0
+    @simd for r in rows
+        @inbounds acc += x[r]*y[r]
+    end
+
+    acc
+end
+
+
 """
-    _column_olsfit{T}(B::BEDMatrix, col::Integer, y::Vector{T}, ybar::T, y2::T)
+    _column_olsfit{T}(B::BEDMatrix, col::Integer, rows, y::Vector{T}, ybar::T, y2::T)
 
 Performs OLS fit of `y` over `B[:, col]` and returns `(β, y0, n, ssr,
 varx)`: the univariate OLS slope, `β`; the intercept, `y0`; the number
@@ -103,11 +151,12 @@ of non-missing entries, `n`; the sum of squared residuals, `ssr`; and
 the variance of `B[:, col]`, `varx`.
 
 """
-function _column_olsfit{T}(B::BEDMatrix, col::Integer, y::Vector{T}, ybar::T, y2::T)
-    @inbounds begin
-        N_zeros, N_ones, N_twos, N_nas, x_y, nasup_y, nasup_y2 = BEDMatrices.column_dist_dot(B, col, y)
-        ntot = n = B.n
+function _column_olsfit{T}(B::BEDMatrix, col::Integer, rows, y::Vector{T}, ybar::T, y2::T)
+    N_zeros, N_ones, N_twos, N_nas, x_y, nasup_y, nasup_y2 = BEDMatrices.column_dist_dot(B, col, y, rows)
+    ntot = N_zeros + N_ones + N_twos + N_nas
 
+    @inbounds begin
+        n = ntot
         if N_nas > 0  # there are missing values
             # adjust n
             n -= N_nas
@@ -153,71 +202,64 @@ function _column_olsfit{T}(B::BEDMatrix, col::Integer, y::Vector{T}, ybar::T, y2
     return UnivariateOLSFit(col, n, y0, β, se, t, pval)
 end
 
-function column_olsfit(B::BEDMatrix, col::Integer, y::AbstractArray)
+
+function column_olsfit(B, col::Integer, y::AbstractArray, rows=(:))
     @boundscheck begin
         length(y) == size(B, 1) || throw(DimensionMismatch("vector must have same length as size(B, 1)"))
         checkbounds(B, :, col)
     end
 
-    ybar = mean(y)
-    y2 = dot(y, y)
+    ybar = sub_mean(y, rows)
+    y2 = sub_dot(y, y, rows)
 
-    _column_olsfit(B, col, y, ybar, y2)
+    _column_olsfit(B, col, rows, y, ybar, y2)
 end
 
-function st_column_olsfit(B::BEDMatrix, y::AbstractArray)
-    @boundscheck begin
-        length(y) == size(B, 1) || throw(DimensionMismatch("vector must have same length as size(B, 1)"))
-    end
+st_column_olsfit(B, y::AbstractArray, rows=(:)) = st_column_olsfit(B, y, rows, indices(B, 2))
+function st_column_olsfit(B, y::AbstractArray, rows, cols)
+    ybar = sub_mean(y, rows)
+    y2 = sub_dot(y, y, rows)
 
-    ybar = mean(y)
-    y2 = dot(y, y)
+    gwas_results = Vector{UnivariateOLSFit}(length(cols))
 
-    gwas_results = Vector{UnivariateOLSFit}(B.p)
-
-    for col in 1:B.p
-        @inbounds gwas_results[col] = _column_olsfit(B, col, y, ybar, y2)
+    for col in cols
+        @inbounds gwas_results[col] = _column_olsfit(B, col, rows, y, ybar, y2)
     end
 
     return gwas_results
 end
 
-function mt_column_olsfit(B::BEDMatrix, y::AbstractArray)
-    @boundscheck begin
-        length(y) == size(B, 1) || throw(DimensionMismatch("vector must have same length as size(B, 1)"))
-    end
+mt_column_olsfit(B, y::AbstractArray, rows=(:)) = mt_column_olsfit(B, y, rows, indices(B, 2))
+function mt_column_olsfit(B, y::AbstractArray, rows, cols)
+    ybar::Float64 = sub_mean(y, rows)
+    y2 = convert(Float64, sub_dot(y, y, rows))
 
-    ybar::Float64 = mean(y)
-    y2 = convert(Float64, dot(y, y))
+    gwas_results = Vector{UnivariateOLSFit}(length(cols))
 
-    gwas_results = Vector{UnivariateOLSFit}(B.p)
-
-    # @inbounds Threads.@threads for col::Int in 1:B.p
-    #     gwas_results[col] = _column_olsfit(B, col, y, ybar, y2)
-    # end
-    _mt_fill_gwas!(gwas_results, B, y, ybar, y2)
+    _mt_fill_gwas!(gwas_results, B, y, ybar, y2, rows, cols)
 
     return gwas_results
 end
 
 # workaround for https://github.com/JuliaLang/julia/issues/15276, and https://github.com/JuliaLang/julia/issues/17395, https://github.com/yuyichao/explore/blob/8d52fb6caa745a658f2c9bbffd3b0f0fe4a2cc48/julia/issue-17395/scale.jl#L21
-@noinline function _mt_fill_gwas!(results, B::BEDMatrix, y::AbstractArray, ybar, y2)
+@noinline function _mt_fill_gwas!(results, B, y::AbstractArray, ybar, y2, rows, cols)
     @inbounds begin
-        Threads.@threads for col in 1:B.p
-            results[col] = _column_olsfit(B, col, y, ybar, y2)
+        Threads.@threads for col in cols
+            results[col] = _column_olsfit(B, col, rows, y, ybar, y2)
         end
     end
     results
 end
 
-function mp_column_olsfit(B::BEDMatrix, y::AbstractArray)
+mp_column_olsfit(B::BEDMatrix, y::AbstractArray, rows=(:)) = mp_column_olsfit(B::BEDMatrix, y::AbstractArray, rows, indices(B, 2))
+function mp_column_olsfit(B::BEDMatrix, y::AbstractArray, rows, cols)
     @boundscheck begin
         length(y) == size(B, 1) || throw(DimensionMismatch("vector must have same length as size(B, 1)"))
     end
-    ybar = mean(y)
-    y2 = dot(y, y)
+    ybar = sub_mean(y, rows)
+    y2 = sub_dot(y, y, rows)
 
-    gwas_results = pmap(col -> _column_olsfit(B, col, y, ybar, y2), 1:B.p)
+    gwas_results = pmap(col -> _column_olsfit(B, col, rows, y, ybar, y2), cols)
 end
 
 # function mt_column_olsfit(B::BEDSubMatrix, y::AbstractArray)
