@@ -126,7 +126,19 @@ function _column_olsfit{T}(B::BEDMatrix, col::Integer, y::Vector{T}, ybar::T, y2
 
         # I keep the denominator::Integer by writing the formula this
         # way.
-        denominator = (n*x2 - abs2(xsum))
+        denominator = n*x2 - abs2(xsum)
+
+        # Handle some singular cases in a defensible way
+        if denominator === 0
+            if numerator !== zero(numerator)
+                # all the points have same x value but different y values
+                return UnivariateOLSFit(col, n, -sign(xsum)*sign(numerator)*Inf,
+                                        sign(numerator)*Inf, Inf, 0.0, 1.0)
+            else
+                # all the points have same x AND y values!
+                return UnivariateOLSFit(col, n, NaN, NaN, NaN, NaN, NaN)
+            end
+        end
 
         β = n*numerator/denominator
         y0 = ybar - β*xsum/n
