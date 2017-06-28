@@ -395,33 +395,28 @@ function _matrix_column_olsfit{T}(M::Matrix{T}, col::Integer, y::AbstractArray, 
     return UnivariateOLSFit(col, n, y0, β, se, t, pval)
 end
 
-function st_matrix_column_olsfit(M::Matrix, y::AbstractArray)
-    ybar = mean(y)
-    y2 = dot(y, y)
-
+function st_matrix_column_olsfit{T}(M::Matrix{T}, y::AbstractArray{T}, na::T)
     gwas_results = Vector{UnivariateOLSFit}(size(M, 2))
 
     for col in 1:B.p
-        @inbounds gwas_results[col] = _matrix_column_olsfit(M, col, y, length(y), ybar, y2)
+        @inbounds gwas_results[col] = _matrix_column_olsfit(M, col, y, length(y), na)
     end
 
     return gwas_results
 end
 
-function mt_matrix_column_olsfit(M::Matrix, y::AbstractArray)
+function mt_matrix_column_olsfit{T}(M::Matrix{T}, y::AbstractArray{T}, na::T)
     n, p = size(M)
-    ybar = mean(y)
-    y2 = dot(y, y)
 
     gwas_results = Vector{UnivariateOLSFit}(p)
 
-    _mt_matrix_fill_gwas!(gwas_results, M, y, n, p, ybar, y2)
+    _mt_matrix_fill_gwas!(gwas_results, M, y, n, p, na)
 end
 
-@noinline function _mt_matrix_fill_gwas!(results, M, y, n, p, ybar, y2)
+@noinline function _mt_matrix_fill_gwas!(results, M, y, n, p, na)
     @inbounds begin
         Threads.@threads for col in 1:p
-            results[col] = _matrix_column_olsfit(M, col, y, n, ybar, y2)
+            results[col] = _matrix_column_olsfit(M, col, y, n, na)
         end
     end
 
