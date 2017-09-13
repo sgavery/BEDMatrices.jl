@@ -310,7 +310,7 @@ end
 
 ##################################################
 # For general ::Matrix (not ::BEDMatrix)
-function mean_impute!{T}(M::Matrix{T}, na::T)
+function mean_impute!{T}(M::AbstractMatrix{T}, na::T)
     n, p = size(M)
 
     z = zero(T)
@@ -349,7 +349,7 @@ function mean_impute!{T}(M::Matrix{T}, na::T)
     M
 end
 
-function _matrix_column_covvar{T}(M::Matrix{T}, col::Integer, y::AbstractArray, na::T)
+function _matrix_column_covvar{T}(M::AbstractMatrix{T}, col::Integer, y::AbstractArray, na::T)
     @inbounds begin
         na_count = 0
         xsum = zero(M[1, col])
@@ -374,7 +374,7 @@ function _matrix_column_covvar{T}(M::Matrix{T}, col::Integer, y::AbstractArray, 
     return na_count, xsum, ysum, x2, y2, x_y
 end
 
-function _matrix_column_olsfit{T}(M::Matrix{T}, col::Integer, y::AbstractArray, n::Integer, na::T)
+function _matrix_column_olsfit{T}(M::AbstractMatrix{T}, col::Integer, y::AbstractArray, n::Integer, na::T)
     @inbounds begin
         na_count, xsum, ysum, x2, y2, x_y = _matrix_column_covvar(M, col, y, na)
         n = size(M, 1) - na_count
@@ -395,7 +395,7 @@ function _matrix_column_olsfit{T}(M::Matrix{T}, col::Integer, y::AbstractArray, 
     return UnivariateOLSFit(col, n, y0, β, se, t, pval)
 end
 
-function st_matrix_column_olsfit{T}(M::Matrix{T}, y::AbstractArray{T}, na::T)
+function st_matrix_column_olsfit{T}(M::AbstractMatrix{T}, y::AbstractArray{T}, na::T)
     gwas_results = Vector{UnivariateOLSFit}(size(M, 2))
 
     for col in 1:B.p
@@ -405,7 +405,7 @@ function st_matrix_column_olsfit{T}(M::Matrix{T}, y::AbstractArray{T}, na::T)
     return gwas_results
 end
 
-function mt_matrix_column_olsfit{T}(M::Matrix{T}, y::AbstractArray{T}, na::T)
+function mt_matrix_column_olsfit{T}(M::AbstractMatrix{T}, y::AbstractArray{T}, na::T)
     n, p = size(M)
 
     gwas_results = Vector{UnivariateOLSFit}(p)
