@@ -305,15 +305,18 @@ immutable BEDMatrix{T, S<:AbstractMatrix} <: DenseArray{T, 2}
 
     _bytemap::Vector{Vector{T}}  # quarters for 0x00:0xff
 
-    function BEDMatrix(n::Integer, p::Integer, X::AbstractMatrix{UInt8}, navalue, path::AbstractString, colnames::AbstractVector, rownames::AbstractVector)
+    function BEDMatrix(n::Integer, p::Integer, X::AbstractMatrix{UInt8}, navalue, path::AbstractString, colnames::AbstractVector, rownames::AbstractVector, bytemap::Vector{Vector}=Vector{Vector{UInt8}}(0))
         byteheight = ceil(Int, n/4)
         lastrowheight = n - 4*(byteheight - 1)
 
         size(X) == (byteheight, p) || throw(DimensionMismatch("Matrix dimensions $(size(X)) do not agree with supplied BED dimensions (n = $n, p = $p)"))
         length(colnames) == p || throw(DimensionMismatch("colnames has incorrect length"))
         length(rownames) == n || throw(DimensionMismatch("rownames has incorrect length"))
+        length(bytemap) == 0 || length(bytemap) == 256 || error("bytemap must be of length(256)")
 
-        bytemap = getbytemap(navalue)
+        if length(bytemap) == 0
+            bytemap = getbytemap(navalue)
+        end
 
         return new(n, p, X, navalue, path, colnames, rownames,
                    byteheight, lastrowheight, bytemap)
