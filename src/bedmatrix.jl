@@ -105,10 +105,10 @@ end
 
 BEDmode(bytevector::Vector{UInt8}) = BEDmode(bytevector[3])
 
-function getbytemap{T}(navalue::T)
+getbytemap{T}(navalue::T) = getbytemap((convert(T, 0b10), navalue, convert(T, 0b01), convert(T, 0b00)))
+function getbytemap{T}(quartermap::Tuple{T, T, T, T})
     # navalue === Consts.NA_byte && return Consts.bytetoquarters
 
-    quartermap = (convert(T, 0b10), navalue, convert(T, 0b01), convert(T, 0b00))
     bytemap = [[rawformat(snp1, quartermap), rawformat(snp2, quartermap),
                 rawformat(snp3, quartermap), rawformat(snp4, quartermap)] for
                snp4 in 0b00:0b11 for
@@ -305,18 +305,14 @@ immutable BEDMatrix{T, S<:AbstractMatrix} <: DenseArray{T, 2}
 
     _bytemap::Vector{Vector{T}}  # quarters for 0x00:0xff
 
-    function BEDMatrix(n::Integer, p::Integer, X::AbstractMatrix{UInt8}, navalue, path::AbstractString, colnames::AbstractVector, rownames::AbstractVector, bytemap::Vector{Vector}=Vector{Vector{UInt8}}(0))
+    function BEDMatrix(n::Integer, p::Integer, X::AbstractMatrix{UInt8}, navalue, path::AbstractString, colnames::AbstractVector, rownames::AbstractVector, bytemap)
         byteheight = ceil(Int, n/4)
         lastrowheight = n - 4*(byteheight - 1)
 
         size(X) == (byteheight, p) || throw(DimensionMismatch("Matrix dimensions $(size(X)) do not agree with supplied BED dimensions (n = $n, p = $p)"))
         length(colnames) == p || throw(DimensionMismatch("colnames has incorrect length"))
         length(rownames) == n || throw(DimensionMismatch("rownames has incorrect length"))
-        length(bytemap) == 0 || length(bytemap) == 256 || error("bytemap must be of length(256)")
-
-        if length(bytemap) == 0
-            bytemap = getbytemap(navalue)
-        end
+        length(bytemap) == 256 || error("bytemap must be of length(256)")
 
         return new(n, p, X, navalue, path, colnames, rownames,
                    byteheight, lastrowheight, bytemap)
@@ -384,7 +380,7 @@ julia> rownames(bed)[1:5]
 """
 function BEDMatrix(bedfilename::AbstractString;
                    datatype::DataType=UInt8, nsamples::Integer=0, nSNPs::Integer=0, navalue=NA_byte,
-                   famfile::AbstractString="", bimfile::AbstractString="")
+                   famfile::AbstractString="", bimfile::AbstractString="", quartermap::Tuple=Consts.quarterstohuman)
     if !isfile(bedfilename)
         isfile(bedfilename*".bed") || error("Cannot find file \"$bedfilename\"")
         bedfilename = bedfilename*".bed"
@@ -418,8 +414,15 @@ function BEDMatrix(bedfilename::AbstractString;
         Mmap.mmap(bedfile, Matrix{UInt8}, (ceil(Int, n/4), p))
     end
 
+    # validate quartermap
+    if quartermap == Consts.quarterstohuman
+        bytemap = getbytemap(convert(datatype, navalue))
+    else
+        bytemap = getbytemap(quartermap)
+    end
+
     return BEDMatrix{datatype, typeof(X)}(n, p, X, convert(datatype, navalue),
-                                          abspath(bedfilename), colnames, rownames)
+                                          abspath(bedfilename), colnames, rownames, bytemap)
 end
 
 function parsefamline(line)
