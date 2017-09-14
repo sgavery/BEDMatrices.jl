@@ -12,7 +12,7 @@
 #     b = numerator/denominator
 #
 #     R2 = dot(y, y) - n*abs2(ybar) - b*numerator
-#     t = b*sqrt((n-2)*denominator/(n*R2))
+#     t = b*sqrt((n-2)*denominator/R2)
 #     pval = tTestpvalue(t, n - 2)
 #
 #     b, ybar - b*xbar, t, pval
@@ -391,7 +391,7 @@ function _matrix_column_olsfit{T}(M::AbstractMatrix{T}, rows, col::Integer, y::A
         y0 = (ysum - β*xsum)/n
 
         R2 = y2 - (abs2(ysum) + β*numerator)/n
-        se = n*sqrt(R2/((n-2)*denominator))
+        se = sqrt(n*R2/((n-2)*denominator))
         t = β/se
         pval = tTestpvalue(t, n - 2)
     end
@@ -408,9 +408,7 @@ function st_matrix_column_olsfit{T}(M::AbstractMatrix{T}, y::AbstractArray, rows
     gwas_results = Vector{UnivariateOLSFit}(length(cols))
 
     @inbounds for (colidx, col) in enumerate(cols)
-        res = _matrix_column_olsfit(M, rows, col, y, na)
-        @show res
-        gwas_results[colidx] = res
+        gwas_results[colidx] = _matrix_column_olsfit(M, rows, col, y, na)
     end
 
     return gwas_results
