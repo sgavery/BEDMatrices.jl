@@ -349,7 +349,9 @@ function mean_impute!{T}(M::AbstractMatrix{T}, na::T)
     M
 end
 
-function _matrix_column_covvar{T}(M::AbstractMatrix{T}, col::Integer, y::AbstractArray, na::T)
+function _matrix_column_covvar{T}(M::AbstractMatrix{T}, rows, col::Integer, y::AbstractArray, na::T)
+    @boundscheck checkbounds(M, rows, col)
+
     @inbounds begin
         na_count = 0
         xsum = zero(M[1, col])
@@ -357,7 +359,7 @@ function _matrix_column_covvar{T}(M::AbstractMatrix{T}, col::Integer, y::Abstrac
         ysum = zero(y[1])
         y2 = ysum
         x_y = zero(M[1, col]*y[1])
-        for row in indices(M, 1)
+        for row in rows
             x = M[row, col]
 
             if x === na
@@ -366,7 +368,7 @@ function _matrix_column_covvar{T}(M::AbstractMatrix{T}, col::Integer, y::Abstrac
                 xsum += x
                 x2 += abs2(x)
                 ysum += y[row]
-                y2 += abs2(y)
+                y2 += abs2(y[row])
                 x_y += x*y[row]
             end
         end
@@ -374,10 +376,12 @@ function _matrix_column_covvar{T}(M::AbstractMatrix{T}, col::Integer, y::Abstrac
     return na_count, xsum, ysum, x2, y2, x_y
 end
 
-function _matrix_column_olsfit{T}(M::AbstractMatrix{T}, col::Integer, y::AbstractArray, n::Integer, na::T)
+function _matrix_column_olsfit{T}(M::AbstractMatrix{T}, rows, col::Integer, y::AbstractArray, na::T)
+    @boundscheck checkbounds(M, rows, col)
+
     @inbounds begin
-        na_count, xsum, ysum, x2, y2, x_y = _matrix_column_covvar(M, col, y, na)
-        n = size(M, 1) - na_count
+        na_count, xsum, ysum, x2, y2, x_y = _matrix_column_covvar(M, rows, col, y, na)
+        n = length(rows) - na_count
         n < 2 && return UnivariateOLSFit(col, n, ysum/n, 0.0, 0.0, 0.0, 1.0)
 
         numerator = n*x_y - xsum*ysum
@@ -386,8 +390,8 @@ function _matrix_column_olsfit{T}(M::AbstractMatrix{T}, col::Integer, y::Abstrac
         β = numerator/denominator
         y0 = (ysum - β*xsum)/n
 
-        R2 = y2 - n*abs2(ybar) - β*numerator/n
-        se = sqrt(R2/((n-2)*denominator))
+        R2 = y2 - (abs2(ysum) + β*numerator)/n
+        se = n*sqrt(R2/((n-2)*denominator))
         t = β/se
         pval = tTestpvalue(t, n - 2)
     end
@@ -395,28 +399,37 @@ function _matrix_column_olsfit{T}(M::AbstractMatrix{T}, col::Integer, y::Abstrac
     return UnivariateOLSFit(col, n, y0, β, se, t, pval)
 end
 
-function st_matrix_column_olsfit{T}(M::AbstractMatrix{T}, y::AbstractArray{T}, na::T)
-    gwas_results = Vector{UnivariateOLSFit}(size(M, 2))
+st_matrix_column_olsfit{T}(M::AbstractMatrix{T}, y::AbstractArray, na::T) = st_matrix_column_olsfit(M, y, indices(M, 1), indices(M, 2), na)
+st_matrix_column_olsfit{T}(M::AbstractMatrix{T}, y::AbstractArray, rows, na::T) = st_matrix_column_olsfit(M, y, rows, indices(M, 2), na)
 
-    for col in 1:B.p
-        @inbounds gwas_results[col] = _matrix_column_olsfit(M, col, y, length(y), na)
+function st_matrix_column_olsfit{T}(M::AbstractMatrix{T}, y::AbstractArray, rows, cols, na::T)
+    @boundscheck checkbounds(M, rows, cols)
+
+    gwas_results = Vector{UnivariateOLSFit}(length(cols))
+
+    @inbounds for (colidx, col) in enumerate(cols)
+        res = _matrix_column_olsfit(M, rows, col, y, na)
+        @show res
+        gwas_results[colidx] = res
     end
 
     return gwas_results
 end
 
-function mt_matrix_column_olsfit{T}(M::AbstractMatrix{T}, y::AbstractArray{T}, na::T)
-    n, p = size(M)
+mt_matrix_column_olsfit{T}(M::AbstractMatrix{T}, y::AbstractArray, na::T) = mt_matrix_column_olsfit(M, y, indices(M, 1), indices(M, 2), na)
+mt_matrix_column_olsfit{T}(M::AbstractMatrix{T}, y::AbstractArray, rows, na::T) = mt_matrix_column_olsfit(M, y, rows, indices(M, 2), na)
+function mt_matrix_column_olsfit{T}(M::AbstractMatrix{T}, y::AbstractArray, rows, cols, na::T)
+    @boundscheck checkbounds(M, rows, cols)
 
-    gwas_results = Vector{UnivariateOLSFit}(p)
+    gwas_results = Vector{UnivariateOLSFit}(length(cols))
 
-    _mt_matrix_fill_gwas!(gwas_results, M, y, n, p, na)
+    _mt_matrix_fill_gwas!(gwas_results, M, y, rows, cols, na)
 end
 
-@noinline function _mt_matrix_fill_gwas!(results, M, y, n, p, na)
+@noinline function _mt_matrix_fill_gwas!(results, M, y, rows, cols, na)
     @inbounds begin
-        Threads.@threads for col in 1:p
-            results[col] = _matrix_column_olsfit(M, col, y, n, na)
+        Threads.@threads for colidx in eachindex(cols)
+            results[colidx] = _matrix_column_olsfit(M, rows, cols[colidx], y, na)
         end
     end
 
