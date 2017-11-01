@@ -419,6 +419,7 @@ function BEDMatrix(bedfilename::AbstractString;
         bytemap = getbytemap(convert(datatype, navalue))
     else
         bytemap = getbytemap(quartermap)
+        navalue = quartermap[2]
     end
 
     return BEDMatrix{datatype, typeof(X)}(n, p, X, convert(datatype, navalue),
