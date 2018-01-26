@@ -820,6 +820,7 @@ pass over `B[:, col]`. Returns
 `(zero_count, one_count, two_count, na_count, dotsum, nasum, na2sum)`.
 
 """
+# this is broken!!
 function column_dist_dot(B::BEDMatrix, col::Integer, v::AbstractArray, rrange::AbstractUnitRange)
     bytestart, quarterstart = rowtobytequarter(first(rrange))
     bytestop, quarterstop = rowtobytequarter(last(rrange))

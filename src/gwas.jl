@@ -387,6 +387,8 @@ function _matrix_column_olsfit{T}(M::AbstractMatrix{T}, rows, col::Integer, y::A
         numerator = n*x_y - xsum*ysum
         denominator = n*x2 - abs2(xsum)
 
+        # handle singular case(s)?
+
         β = numerator/denominator
         y0 = (ysum - β*xsum)/n
 
