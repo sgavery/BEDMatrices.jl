@@ -13,6 +13,10 @@ function bytemask(num_quarters::Integer, qoffset::Integer)
     mask
 end
 
+function flipsnp(x::UInt8)
+    x = (~x) & 0b00_00_00_11
+    (x << 1 | x >> 1) & 0b00_00_00_11
+end
 
 #################### Constants ####################
 
@@ -56,6 +60,12 @@ const bytetoquarters = tuple([(quarterstohuman[snp1 + 1], quarterstohuman[snp2 +
                               snp3 in 0b00:0b11 for
                               snp2 in 0b00:0b11 for
                               snp1 in 0b00:0b11]...)
+
+const flipBEDbytes = tuple([(flipsnp(snp4) << 6) | (flipsnp(snp3) << 4) | (flipsnp(snp2) << 2) | flipsnp(snp1) for
+                            snp4 in 0b00:0b11 for
+                            snp3 in 0b00:0b11 for
+                            snp2 in 0b00:0b11 for
+                            snp1 in 0b00:0b11]...)
 
 ### BED byte to RAW math
 const onebyte = 0b10_10_10_10  # vector of ones in RAW format

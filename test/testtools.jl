@@ -24,7 +24,7 @@ function simulatedBEDMatrix(n::Integer, p::Integer, datatype::DataType=UInt8, na
     colnames = [string("col_", j) for j in 1:p]
 
     bed = BEDMatrix{datatype, typeof(X)}(n, p, X, convert(datatype, navalue),
-                                         path, colnames, rownames)
+                                         path, colnames, rownames, BEDMatrices.getbytemap(convert(datatype, navalue)), falses(p))
     navalue_typed = convert(datatype, navalue)
     data = map(x -> x === 0b01 ? navalue_typed : convert(datatype, BEDMatrices.rawformat(x)), M)
     return (data, bed)

@@ -54,6 +54,14 @@ function quarter(byte::UInt8, n::Integer, quartermap=Consts.quarterstohuman)
     @inbounds return quartermap[((byte >> 2(n - 1)) & 0b00000011) + 1]
 end
 
+@inline function flipBEDbyte(byte::UInt8)
+    # 0b00 -> 0b11
+    # 0b11 -> 0b00
+    # 0b10 -> 0b10
+    # 0b01 -> 0b01
+
+    @inbounds return Consts.flipBEDbytes[byte + 1]
+end
 
 """
     BEDsize(filebase::AbstractString)
@@ -142,7 +150,7 @@ end
     unsafe_copybytestosnps!(snparray::AbstractArray, bytearray::AbstractArray{UInt8},
                             bytestart::Integer, quarterstart::Integer,
                             bytestop::Integer, quarterstop::Integer,
-                            deststart::Integer=1, bytemap=bytetoquarters)
+                            deststart::Integer=1, bytemap=bytetoquarters, flip::Bool=false)
 
 Fills `snparray[deststart:(deststart + num_snps)]` with snps, where
 
@@ -154,32 +162,59 @@ representation is determined by the `bytemap`. Currently only supports
 unit stride for both `snparray` and `bytearray`, since at present
 there is no compelling use-case involving non-unit strides.
 
-Utility function used by more front facing functions.
+Utility function used by more front-facing functions.
+
+If `flip` is `true`, then minor and major allele are flipped when copying.
 
 """
 function unsafe_copybytestosnps!(snparray::AbstractArray, bytearray::AbstractArray{UInt8},
                                  bytestart::Integer, quarterstart::Integer,
                                  bytestop::Integer, quarterstop::Integer,
-                                 deststart::Integer=1, bytemap=Consts.bytetoquarters)
-    # First byte
-    if quarterstart != 1
-        stop = ifelse(bytestart == bytestop, quarterstop, 4)
-        @inbounds unsafe_breakbyte!(snparray, bytearray[bytestart], bytemap, deststart, quarterstart, stop)
-        deststart += stop - quarterstart + 1
-        bytestart += 1
-    end
-
-    if bytestart <= bytestop
-        # Last byte
-        if quarterstop != 4
-            @inbounds unsafe_breakbyte!(snparray, bytearray[bytestop], bytemap, deststart + 4*(bytestop - bytestart), 1, quarterstop)
-            bytestop -= 1
+                                 deststart::Integer=1, bytemap=Consts.bytetoquarters, flip::Bool=false)
+    # TODO: make DRY with functional or metaprogramming techniques
+    if flip
+        # First byte
+        if quarterstart != 1
+            stop = ifelse(bytestart == bytestop, quarterstop, 4)
+            @inbounds unsafe_breakbyte!(snparray, flipBEDbyte(bytearray[bytestart]), bytemap, deststart, quarterstart, stop)
+            deststart += stop - quarterstart + 1
+            bytestart += 1
         end
 
-        # Main course
-        @simd for bytej in bytestart:bytestop
-            @inbounds unsafe_breakbyte!(snparray, bytearray[bytej], bytemap, deststart + 4*(bytej - bytestart))
+        if bytestart <= bytestop
+            # Last byte
+            if quarterstop != 4
+                @inbounds unsafe_breakbyte!(snparray, flipBEDbyte(bytearray[bytestop]), bytemap, deststart + 4*(bytestop - bytestart), 1, quarterstop)
+                bytestop -= 1
+            end
+
+            # Main course
+            @simd for bytej in bytestart:bytestop
+                @inbounds unsafe_breakbyte!(snparray, flipBEDbyte(bytearray[bytej]), bytemap, deststart + 4*(bytej - bytestart))
+            end
         end
+    else
+        # First byte
+        if quarterstart != 1
+            stop = ifelse(bytestart == bytestop, quarterstop, 4)
+            @inbounds unsafe_breakbyte!(snparray, bytearray[bytestart], bytemap, deststart, quarterstart, stop)
+            deststart += stop - quarterstart + 1
+            bytestart += 1
+        end
+
+        if bytestart <= bytestop
+            # Last byte
+            if quarterstop != 4
+                @inbounds unsafe_breakbyte!(snparray, bytearray[bytestop], bytemap, deststart + 4*(bytestop - bytestart), 1, quarterstop)
+                bytestop -= 1
+            end
+
+            # Main course
+            @simd for bytej in bytestart:bytestop
+                @inbounds unsafe_breakbyte!(snparray, bytearray[bytej], bytemap, deststart + 4*(bytej - bytestart))
+            end
+        end
+
     end
 
     return snparray
@@ -304,8 +339,11 @@ immutable BEDMatrix{T, S<:AbstractMatrix} <: DenseArray{T, 2}
     _lastrowSNPheight::Int  # number of SNPs in last byte of each column ∈ (1, 2, 3, 4)
 
     _bytemap::Vector{Vector{T}}  # quarters for 0x00:0xff
+    _flip::BitVector
 
-    function BEDMatrix(n::Integer, p::Integer, X::AbstractMatrix{UInt8}, navalue, path::AbstractString, colnames::AbstractVector, rownames::AbstractVector, bytemap)
+    function BEDMatrix(n::Integer, p::Integer, X::AbstractMatrix{UInt8}, navalue,
+                       path::AbstractString, colnames::AbstractVector, rownames::AbstractVector,
+                       bytemap, flip::BitVector)
         byteheight = ceil(Int, n/4)
         lastrowheight = n - 4*(byteheight - 1)
 
@@ -313,16 +351,17 @@ immutable BEDMatrix{T, S<:AbstractMatrix} <: DenseArray{T, 2}
         length(colnames) == p || throw(DimensionMismatch("colnames has incorrect length"))
         length(rownames) == n || throw(DimensionMismatch("rownames has incorrect length"))
         length(bytemap) == 256 || error("bytemap must be of length(256)")
+        length(flip) == p || throw(DimensionMismatch("flip has length $(length(flip)) expected length of p = $p"))
 
         return new(n, p, X, navalue, path, colnames, rownames,
-                   byteheight, lastrowheight, bytemap)
+                   byteheight, lastrowheight, bytemap, flip)
     end
 end
 
 """
     BEDMatrix(bedfilename::AbstractString;
               datatype::DataType=UInt8, nsamples::Integer=0, nSNPs::Integer=0, navalue=NA_byte
-              famfile::AbstractString="", bimfile::AbstractString="")
+              famfile::AbstractString="", bimfile::AbstractString="", flip=AbstractVector)
 
 Create a `BEDMatrix` of type `datatype` using memory mapping of BED
 file, `bedfilename`. Use `navalue` for missing values. `famfile` and
@@ -380,7 +419,7 @@ julia> rownames(bed)[1:5]
 """
 function BEDMatrix(bedfilename::AbstractString;
                    datatype::DataType=UInt8, nsamples::Integer=0, nSNPs::Integer=0, navalue=NA_byte,
-                   famfile::AbstractString="", bimfile::AbstractString="", quartermap::Tuple=Consts.quarterstohuman)
+                   famfile::AbstractString="", bimfile::AbstractString="", quartermap::Tuple=Consts.quarterstohuman, flip::AbstractVector=Int[])
     if !isfile(bedfilename)
         isfile(bedfilename*".bed") || error("Cannot find file \"$bedfilename\"")
         bedfilename = bedfilename*".bed"
@@ -422,8 +461,23 @@ function BEDMatrix(bedfilename::AbstractString;
         navalue = quartermap[2]
     end
 
+    if eltype(flip) == Bool
+        length(flip) == p || throw(DimensionMismatch("flip has length $(length(flip)) expected length of p = $p"))
+        flip = BitVector(flip)
+    elseif eltype(flip) <: Integer
+        checkbounds(Bool, 1:p, flip) || error("Invalid index in flip vector")
+        flip = BitVector(map(x -> x in flip, 1:p))
+    elseif eltype(flip) <: AbstractString
+        for name in flip
+            name in colnames || error("\"$name\" in flip is not a column_name")
+        end
+        flip = BitVector(map(x -> x in flip, colnames))
+    else
+        error("Invalid flip vector: expected logical vector, vector of Indices, or vector of column names")
+    end
+
     return BEDMatrix{datatype, typeof(X)}(n, p, X, convert(datatype, navalue),
-                                          abspath(bedfilename), colnames, rownames, bytemap)
+                                          abspath(bedfilename), colnames, rownames, bytemap, flip)
 end
 
 function parsefamline(line)
@@ -492,6 +546,38 @@ NArep(B::BEDMatrix) = B.navalue
 getrow(B::BEDMatrix, rowname::AbstractString) = findfirst(B.rownames, rowname)
 getcol(B::BEDMatrix, colname::AbstractString) = findfirst(B.colnames, colname)
 
+getflips(B::BEDMatrix) = find(B._flip)
+
+function setflips!(B::BEDMatrix, flip_logical::AbstractVector{Bool})
+    length(flip_logical) == size(B, 2) || throw(DimensionsMismatch("flip had incorrect length"))
+    copy!(B._flip, flip_logical)
+    B._flip
+end
+
+function setflips!{K<:Integer}(B::BEDMatrix, flip_indices::AbstractVector{K})
+    checkbounds(1:B.p, flip_indices)
+
+    fill!(B._flip, false)
+
+    for col in flip_indices
+        B._flip[col] = true
+    end
+
+    B._flip
+end
+
+function setflips!{S<:AbstractString}(B::BEDMatrix, flip_names::AbstractVector{S})
+    for name in flip
+        name in colnames || error("\"$name\" in flip is not a column_name")
+    end
+    fill!(B._flip, false)
+
+    for name in flip
+        B._flip[getcol(B, name)] = true
+    end
+
+    B._flip
+end
 
 #################### Indexing ####################
 
@@ -551,7 +637,13 @@ function unsafe_getindex{T, S}(B::BEDMatrix{T, S}, row::Integer, col::Integer)
     byterow, snpind = rowtobytequarter(row)
 
     # @inbounds snp = convert(T, quarter(B.X[byterow, col], snpind))
-    @inbounds return breakbyte(B.X[byterow, col], B._bytemap)[snpind]
+    @inbounds begin
+        if B._flip[col]
+            return breakbyte(flipBEDbyte(B.X[byterow, col]), B._bytemap)[snpind]
+        else
+            return breakbyte(B.X[byterow, col], B._bytemap)[snpind]
+        end
+    end
 end
 
 function unsafe_getcol{T, S}(B::BEDMatrix{T, S}, col::Integer)
@@ -562,7 +654,8 @@ function unsafe_getcol{T, S}(B::BEDMatrix{T, S}, col::Integer)
 end
 
 function unsafe_getcol!{T, S}(column::AbstractArray{T}, B::BEDMatrix{T, S}, col::Integer, deststart=1)
-    unsafe_copybytestosnps!(column, B.X, B._byteheight*(col - 1) + 1, 1, B._byteheight*col, B._lastrowSNPheight, deststart, B._bytemap)
+    @inbounds unsafe_copybytestosnps!(column, B.X, B._byteheight*(col - 1) + 1, 1, B._byteheight*col,
+                                      B._lastrowSNPheight, deststart, B._bytemap, B._flip[col])
     return column
 end
 
@@ -579,7 +672,7 @@ function unsafe_getrowrange!{T, S}(vector::AbstractArray{T}, B::BEDMatrix{T, S},
     bytestop, quarterstop = rowtobytequarter(last(rrange))
     bytestop += B._byteheight*(col - 1)
 
-    unsafe_copybytestosnps!(vector, B.X, bytestart, quarterstart, bytestop, quarterstop, deststart, B._bytemap)
+    @inbounds unsafe_copybytestosnps!(vector, B.X, bytestart, quarterstart, bytestop, quarterstop, deststart, B._bytemap, B._flip[col])
     return vector
 end
 
@@ -598,7 +691,11 @@ fourquarters[snpind]`.
 """
 function getquarterblock(B::BEDMatrix, row::Integer, col::Integer)
     byterow, snpind = rowtobytequarter(row)
-    @inbounds return (breakbyte(B.X[byterow, col], B._bytemap), byterow, snpind)
+    if B._flip[col]
+        @inbounds return (breakbyte(flipBEDbyte(B.X[byterow, col]), B._bytemap), byterow, snpind)
+    else
+        @inbounds return (breakbyte(B.X[byterow, col], B._bytemap), byterow, snpind)
+    end
 end
 
 """
