@@ -88,7 +88,8 @@ Determine if first two "magic" bytes match plink format. If not throws
 an error, else returns `true`.
 
 """
-checkmagic(bytes::Vector{UInt8}) = (bytes[1:2] == Consts.plinkmagic || error("Bad magic: not a plink bed file"))
+checkmagic(bytes::Vector{UInt8}) = (bytes[1:2] == Consts.plinkmagic ||
+                                    error("Bad magic: not a plink bed file"))
 
 function checkmagic(bedstream::IO)
     seekstart(bedstream)
@@ -113,7 +114,8 @@ end
 
 BEDmode(bytevector::Vector{UInt8}) = BEDmode(bytevector[3])
 
-getbytemap{T}(navalue::T) = getbytemap((convert(T, 0b10), navalue, convert(T, 0b01), convert(T, 0b00)))
+getbytemap{T}(navalue::T) = getbytemap((convert(T, 0b10), navalue,
+                                        convert(T, 0b01), convert(T, 0b00)))
 function getbytemap{T}(quartermap::Tuple{T, T, T, T})
     # navalue === Consts.NA_byte && return Consts.bytetoquarters
 
@@ -128,7 +130,9 @@ function getbytemap{T}(quartermap::Tuple{T, T, T, T})
 end
 
 """
-    unsafe_breakbyte!(vector::AbstractArray, byte::UInt8, bytemap=bytetoquarters, vecstart=1, quarterstart=1, quarterstop=4)
+    unsafe_breakbyte!(vector::AbstractArray, byte::UInt8, 
+                      bytemap=bytetoquarters, vecstart=1,
+                      quarterstart=1, quarterstop=4)
 
 Fills `vector` starting at `vecstart` with the `quarterstart`th snp
 through the `quarterstop`th snp in `byte`, as determined by `bytemap`.
@@ -150,7 +154,8 @@ end
     unsafe_copybytestosnps!(snparray::AbstractArray, bytearray::AbstractArray{UInt8},
                             bytestart::Integer, quarterstart::Integer,
                             bytestop::Integer, quarterstop::Integer,
-                            deststart::Integer=1, bytemap=bytetoquarters, flip::Bool=false)
+                            deststart::Integer=1, bytemap=bytetoquarters, 
+                            flip::Bool=false)
 
 Fills `snparray[deststart:(deststart + num_snps)]` with snps, where
 
@@ -170,7 +175,8 @@ If `flip` is `true`, then minor and major allele are flipped when copying.
 function unsafe_copybytestosnps!(snparray::AbstractArray, bytearray::AbstractArray{UInt8},
                                  bytestart::Integer, quarterstart::Integer,
                                  bytestop::Integer, quarterstop::Integer,
-                                 deststart::Integer=1, bytemap=Consts.bytetoquarters, flip::Bool=false)
+                                 deststart::Integer=1, bytemap=Consts.bytetoquarters,
+                                 flip::Bool=false)
     # TODO: make DRY with functional or metaprogramming techniques
     if flip
         # First byte
@@ -224,7 +230,8 @@ end
 ######################### Reading .bed into a Matrix #########################
 
 """
-    BEDintomatrix{T<:Real}(bedfilename::AbstractString; datatype::Type{T}=UInt8, navalue=NA_byte, n::Integer=0, p::Integer=0, use_mmap=true)
+    BEDintomatrix{T<:Real}(bedfilename::AbstractString; datatype::Type{T}=UInt8, 
+                           navalue=NA_byte, n::Integer=0, p::Integer=0, use_mmap=true)
 
 Returns a `Matrix{T}` representation of the BED file `bedfilename`. If
 the number or rows and columns, `n` and `p`, are not provided, then
@@ -234,7 +241,12 @@ then read into the matrix for potential speedups. Missing values are
 set to `navalue`.
 
 """
-function BEDintomatrix{T<:Real}(bedfilename::AbstractString; datatype::Type{T}=UInt8, navalue=NA_byte, n::Integer=0, p::Integer=0, use_mmap=true)
+function BEDintomatrix{T<:Real}(bedfilename::AbstractString;
+                                datatype::Type{T}=UInt8,
+                                navalue=NA_byte,
+                                n::Integer=0,
+                                p::Integer=0,
+                                use_mmap::Bool=true)
     if !isfile(bedfilename)
         isfile(bedfilename*".bed") || error("Cannot find file \"$bedfilename\"")
         bedfilename = bedfilename*".bed"
@@ -326,20 +338,20 @@ end
 # http://docs.julialang.org/en/stable/manual/performance-tips/#type-declarations
 
 immutable BEDMatrix{T, S<:AbstractMatrix} <: DenseArray{T, 2}
-    n::Int
-    p::Int
-    X::S
-    navalue::T
+    n::Int                       # number of samples (rows)
+    p::Int                       # number of SNPs (columns)
+    X::S                         # Matrix{UInt8} bed file
+    navalue::T                   # representation of missing
 
-    path::String
-    colnames::Vector{String}
-    rownames::Vector{String}
+    path::String                 # file location
+    colnames::Vector{String}     # SNP labels, can be used for indexing
+    rownames::Vector{String}     # sample labels, can be used for indexing
 
-    _byteheight::Int  # number of bytes in each column
-    _lastrowSNPheight::Int  # number of SNPs in last byte of each column ∈ (1, 2, 3, 4)
+    _byteheight::Int             # number of bytes in each column
+    _lastrowSNPheight::Int       # number of SNPs in last byte of each column ∈ (1, 2, 3, 4)
 
     _bytemap::Vector{Vector{T}}  # quarters for 0x00:0xff
-    _flip::BitVector
+    _flip::BitVector             # whether to flip SNP major--minor allele encoding for each SNP
 
     function BEDMatrix(n::Integer, p::Integer, X::AbstractMatrix{UInt8}, navalue,
                        path::AbstractString, colnames::AbstractVector, rownames::AbstractVector,
@@ -351,7 +363,7 @@ immutable BEDMatrix{T, S<:AbstractMatrix} <: DenseArray{T, 2}
         length(colnames) == p || throw(DimensionMismatch("colnames has incorrect length"))
         length(rownames) == n || throw(DimensionMismatch("rownames has incorrect length"))
         length(bytemap) == 256 || error("bytemap must be of length(256)")
-        length(flip) == p || throw(DimensionMismatch("flip has length $(length(flip)) expected length of p = $p"))
+        length(flip) == p || throw(DimensionMismatch("flip has length $(length(flip)); expected length of p = $p"))
 
         return new(n, p, X, navalue, path, colnames, rownames,
                    byteheight, lastrowheight, bytemap, flip)
@@ -418,7 +430,7 @@ julia> rownames(bed)[1:5]
 
 """
 function BEDMatrix(bedfilename::AbstractString;
-                   datatype::DataType=UInt8, nsamples::Integer=0, nSNPs::Integer=0, navalue=NA_byte,
+                   datatype::DataType=Int8, nsamples::Integer=0, nSNPs::Integer=0, navalue=NA_byte,
                    famfile::AbstractString="", bimfile::AbstractString="", quartermap::Tuple=Consts.quarterstohuman, flip::AbstractVector=Int[])
     if !isfile(bedfilename)
         isfile(bedfilename*".bed") || error("Cannot find file \"$bedfilename\"")
@@ -448,7 +460,9 @@ function BEDMatrix(bedfilename::AbstractString;
 
     X = open(filebase*".bed", "r") do bedfile
         checkmagic(bedfile)
-        BEDmode(bedfile) == :SNPmajor || error("Old-style SNP-minor mode bed files not supported. Use plink to convert to SNP-major format")
+        BEDmode(bedfile) == :SNPmajor || error("Old-style SNP-minor mode bed"*
+                                               " files not supported. Use plink"*
+                                               " to convert to SNP-major format")
 
         Mmap.mmap(bedfile, Matrix{UInt8}, (ceil(Int, n/4), p))
     end
@@ -461,6 +475,7 @@ function BEDMatrix(bedfilename::AbstractString;
         navalue = quartermap[2]
     end
 
+    # Process and validate flip
     if eltype(flip) == Bool
         length(flip) == p || throw(DimensionMismatch("flip has length $(length(flip)) expected length of p = $p"))
         flip = BitVector(flip)
@@ -473,7 +488,7 @@ function BEDMatrix(bedfilename::AbstractString;
         end
         flip = BitVector(map(x -> x in flip, colnames))
     else
-        error("Invalid flip vector: expected logical vector, vector of Indices, or vector of column names")
+        error("Invalid flip vector: expected logical, index, or column name vector")
     end
 
     return BEDMatrix{datatype, typeof(X)}(n, p, X, convert(datatype, navalue),

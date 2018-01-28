@@ -1,6 +1,7 @@
 # testtools.jl
 
-function simulatedBEDMatrix(n::Integer, p::Integer, datatype::DataType=UInt8, navalue=BEDMatrices.NA_byte, missingvalues=true)
+function simulatedBEDMatrix(n::Integer, p::Integer, datatype::DataType=UInt8, navalue=BEDMatrices.NA_byte,
+                            missingvalues=true, flips=false)
     srand(0)  # for reproducibility
     if missingvalues
         M = rand(0b00:0b11, n, p)
@@ -22,11 +23,34 @@ function simulatedBEDMatrix(n::Integer, p::Integer, datatype::DataType=UInt8, na
     path = "[memory]"
     rownames = [string("row_", j) for j in 1:n]
     colnames = [string("col_", j) for j in 1:p]
+    if flips
+        flipvec = BitVector(rand(Bool, p))
+    else
+        flipvec = falses(p)
+    end
 
     bed = BEDMatrix{datatype, typeof(X)}(n, p, X, convert(datatype, navalue),
-                                         path, colnames, rownames, BEDMatrices.getbytemap(convert(datatype, navalue)), falses(p))
+                                         path, colnames, rownames, BEDMatrices.getbytemap(convert(datatype, navalue)), flipvec)
     navalue_typed = convert(datatype, navalue)
-    data = map(x -> x === 0b01 ? navalue_typed : convert(datatype, BEDMatrices.rawformat(x)), M)
+
+    if flips
+        data = Matrix{datatype}(n, p)
+        for col in 1:p
+            if flipvec[col]
+                for row in 1:n
+                    x = M[row, col] === 0b01 ? navalue_typed : convert(datatype, BEDMatrices.rawformat(M[row, col]))
+                    data[row, col] = x == navalue_typed ? x : 2 - x
+                end
+            else
+                for row in 1:n
+                    x = M[row, col] === 0b01 ? navalue_typed : convert(datatype, BEDMatrices.rawformat(M[row, col]))
+                    data[row, col] = x
+                end
+            end
+        end
+    else
+        data = map(x -> x === 0b01 ? navalue_typed : convert(datatype, BEDMatrices.rawformat(x)), M)
+    end
     return (data, bed)
 end
 

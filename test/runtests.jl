@@ -26,7 +26,8 @@ const examplerows, examplecols, exampledata = readRAW(examplepath*rawfile)
 const bed = BEDMatrix(examplepath*bedfile)
 const simbeds = [simulatedBEDMatrix(4, 5), simulatedBEDMatrix(5, 5, Int, 255), simulatedBEDMatrix(6, 5, Float64),
                  simulatedBEDMatrix(7, 5, Int8, -128), simulatedBEDMatrix(1, 5, Int8, -128, false), simulatedBEDMatrix(2, 1, Int8, -128, false),
-                 simulatedBEDMatrix(3, 1, UInt, 0b11, false), simulatedBEDMatrix(4, 1, Int8, -128, false)]
+                 simulatedBEDMatrix(3, 1, UInt, 0b11, false), simulatedBEDMatrix(4, 1, Int8, -128, false),
+                 simulatedBEDMatrix(13, 11, Int8, 127, true, true), simulatedBEDMatrix(13, 11, Float32, -128.0, false, true)]
 
 @testset "Basic Functional Testing" begin
     @testset "Reading BED file directly into matrix" begin
@@ -295,7 +296,7 @@ end
     @testset "column_dot" begin
         v = collect(1:50)
         for col1 in 20:30
-            @test column_dot(bed, col1, v) == dot(map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, bed[:, col1]), v)
+            @test column_dot(bed, col1, v) == dot(map(e -> e === NArep(bed) ? zero(e) : e, bed[:, col1]), v)
             for col2 in 26:30
                 @test column_dot(bed, col1, col2) == dot(map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, exampledata[:, col1]),
                                                          map(e -> e === BEDMatrices.NA_byte ? zero(e) : e, exampledata[:, col2]))
