@@ -34,8 +34,12 @@ Return length-4 `Vector{UInt8}` of the RAW-formatted SNP quarters, as
 determined by `bytemap`, in `byte`.
 
 """
-function breakbyte(byte::UInt8, bytemap=Consts.bytetoquarters)
+@inline function breakbyte(byte::UInt8, bytemap=Consts.bytetoquarters)
     @inbounds return bytemap[byte + 1]
+end
+
+@inline function breakbyte(byte::UInt8, bytemap, snpind::Int)
+    @inbounds return bytemap[byte + 1][snpind]
 end
 
 # Approach from Quantgen/BEDMatrix: shift by 2(n - 1) and then mask
@@ -117,10 +121,8 @@ BEDmode(bytevector::Vector{UInt8}) = BEDmode(bytevector[3])
 getbytemap{T}(navalue::T) = getbytemap((convert(T, 0b10), navalue,
                                         convert(T, 0b01), convert(T, 0b00)))
 function getbytemap{T}(quartermap::Tuple{T, T, T, T})
-    # navalue === Consts.NA_byte && return Consts.bytetoquarters
-
-    bytemap = [[rawformat(snp1, quartermap), rawformat(snp2, quartermap),
-                rawformat(snp3, quartermap), rawformat(snp4, quartermap)] for
+    bytemap = [(rawformat(snp1, quartermap), rawformat(snp2, quartermap),
+                rawformat(snp3, quartermap), rawformat(snp4, quartermap)) for
                snp4 in 0b00:0b11 for
                snp3 in 0b00:0b11 for
                snp2 in 0b00:0b11 for
@@ -142,7 +144,10 @@ through the `quarterstop`th snp in `byte`, as determined by `bytemap`.
 * 1 <= `vecstart` <= `end - (quarterstop - quarterstart)`
 
 """
-function unsafe_breakbyte!(vector::AbstractArray, byte::UInt8, bytemap=Consts.bytetoquarters, vecstart=1, quarterstart=1, quarterstop=4)
+function unsafe_breakbyte!(vector::AbstractArray, byte::UInt8,
+                           bytemap=Consts.bytetoquarters, vecstart=1,
+                           quarterstart=1, quarterstop=4)
+
     @inbounds copy!(vector, vecstart,
                     breakbyte(byte, bytemap), quarterstart,
                     quarterstop - quarterstart + 1)
@@ -154,7 +159,7 @@ end
     unsafe_copybytestosnps!(snparray::AbstractArray, bytearray::AbstractArray{UInt8},
                             bytestart::Integer, quarterstart::Integer,
                             bytestop::Integer, quarterstop::Integer,
-                            deststart::Integer=1, bytemap=bytetoquarters, 
+                            deststart::Integer=1, bytemap=bytetoquarters,
                             flip::Bool=false)
 
 Fills `snparray[deststart:(deststart + num_snps)]` with snps, where
@@ -177,8 +182,7 @@ function unsafe_copybytestosnps!(snparray::AbstractArray, bytearray::AbstractArr
                                  bytestop::Integer, quarterstop::Integer,
                                  deststart::Integer=1, bytemap=Consts.bytetoquarters,
                                  flip::Bool=false)
-    # TODO: make DRY with functional or metaprogramming techniques
-    if flip
+    if flip # TODO: make DRY
         # First byte
         if quarterstart != 1
             stop = ifelse(bytestart == bytestop, quarterstop, 4)
@@ -348,10 +352,12 @@ immutable BEDMatrix{T, S<:AbstractMatrix} <: DenseArray{T, 2}
     rownames::Vector{String}     # sample labels, can be used for indexing
 
     _byteheight::Int             # number of bytes in each column
-    _lastrowSNPheight::Int       # number of SNPs in last byte of each column ∈ (1, 2, 3, 4)
+    _lastrowSNPheight::Int       # number of SNPs in last byte of each column
 
-    _bytemap::Vector{Vector{T}}  # quarters for 0x00:0xff
-    _flip::BitVector             # whether to flip SNP major--minor allele encoding for each SNP
+    _bytemap::Vector{Tuple{T, T, T, T}}  # quarters for 0x00:0xff
+
+    _flip::BitVector                     # whether to flip SNP major--minor
+                                         # allele encoding for each SNP
 
     function BEDMatrix(n::Integer, p::Integer, X::AbstractMatrix{UInt8}, navalue,
                        path::AbstractString, colnames::AbstractVector, rownames::AbstractVector,
@@ -438,6 +444,7 @@ function BEDMatrix(bedfilename::AbstractString;
     end
     filebase = splitext(bedfilename)[1]
 
+    # read .fam file
     famfile = famfile == "" ? filebase*".fam" : famfile
     if isfile(famfile)
         rownames = readrownames(famfile)
@@ -447,6 +454,7 @@ function BEDMatrix(bedfilename::AbstractString;
         error("Cannot find FAM file \"$famfile\" and nsamples not provided")
     end
 
+    # read .bim file
     bimfile = bimfile == "" ? filebase*".bim" : bimfile
     if isfile(bimfile)
         colnames = readcolnames(bimfile)
@@ -654,9 +662,9 @@ function unsafe_getindex{T, S}(B::BEDMatrix{T, S}, row::Integer, col::Integer)
     # @inbounds snp = convert(T, quarter(B.X[byterow, col], snpind))
     @inbounds begin
         if B._flip[col]
-            return breakbyte(flipBEDbyte(B.X[byterow, col]), B._bytemap)[snpind]
+            return breakbyte(flipBEDbyte(B.X[byterow, col]), B._bytemap, snpind)
         else
-            return breakbyte(B.X[byterow, col], B._bytemap)[snpind]
+            return breakbyte(B.X[byterow, col], B._bytemap, snpind)
         end
     end
 end
