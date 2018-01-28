@@ -30,8 +30,15 @@ const modes = Dict(0b0000_0001 => :SNPmajor,
 const NA_byte = 0b11
 const quarterstohuman = (0b10, NA_byte, 0b01, 0b00)
 
+const flipBEDbytes = tuple([(flipsnp(snp4) << 6) | (flipsnp(snp3) << 4) | (flipsnp(snp2) << 2) | flipsnp(snp1) for
+                            snp4 in 0b00:0b11 for
+                            snp3 in 0b00:0b11 for
+                            snp2 in 0b00:0b11 for
+                            snp1 in 0b00:0b11]...)
+
+
 """
-    const bytetoquarters::Tuple{Tuple{UInt8,UInt8,UInt8,UInt8}, ...}
+    const bytetoquarters::Tuple{Vararg{Tuple{UInt8,UInt8,UInt8,UInt8}, 256}}
 
 A constant array storing all 256 bytes split into 4 quarters. Note
 that the mapping is given by `bytetoquarters[BEDbyte + 1]` because of
@@ -54,18 +61,31 @@ order: `0b01`, `0b10`, `0b10`, `0b11`, and then changing from BED
 format to `rawformat` with `0x03` representing missing value.
 
 """
-const bytetoquarters = tuple([(quarterstohuman[snp1 + 1], quarterstohuman[snp2 + 1],
-                               quarterstohuman[snp3 + 1], quarterstohuman[snp4 + 1]) for
-                              snp4 in 0b00:0b11 for
-                              snp3 in 0b00:0b11 for
-                              snp2 in 0b00:0b11 for
-                              snp1 in 0b00:0b11]...)
+const bytetoquarters = tuple([(quarterstohuman[(byte & 0b00_00_00_11) + 1],
+                               quarterstohuman[(byte & 0b00_00_11_00) >> 2 + 1],
+                               quarterstohuman[(byte & 0b00_11_00_00) >> 4 + 1],
+                               quarterstohuman[(byte & 0b11_00_00_00) >> 6 + 1]) for
+                              byte in 0x00:0xff]...)
 
-const flipBEDbytes = tuple([(flipsnp(snp4) << 6) | (flipsnp(snp3) << 4) | (flipsnp(snp2) << 2) | flipsnp(snp1) for
-                            snp4 in 0b00:0b11 for
-                            snp3 in 0b00:0b11 for
-                            snp2 in 0b00:0b11 for
-                            snp1 in 0b00:0b11]...)
+"""
+    const defaultbytemap::Matrix{Tuple{Vararg{UInt8, 4}}}
+
+This is a matrix of `size(defaultbytemap) == (256, 2)`. The first
+columne is the same as `bytetoquarters`: `defaultbytemap[:, false + 1]
+== collect(bytetoquarters)`, see docstring for `bytetoquarters`. The
+second column corresponds to doing a major--minor allele flip.
+
+"""
+const defaultbytemap = hcat([(quarterstohuman[(byte & 0b00_00_00_11) + 1],
+                              quarterstohuman[(byte & 0b00_00_11_00) >> 2 + 1],
+                              quarterstohuman[(byte & 0b00_11_00_00) >> 4 + 1],
+                              quarterstohuman[(byte & 0b11_00_00_00) >> 6 + 1]) for
+                             byte in 0x00:0xff],
+                            [(quarterstohuman[(byte & 0b00_00_00_11) + 1],
+                              quarterstohuman[(byte & 0b00_00_11_00) >> 2 + 1],
+                              quarterstohuman[(byte & 0b00_11_00_00) >> 4 + 1],
+                              quarterstohuman[(byte & 0b11_00_00_00) >> 6 + 1]) for
+                             byte in flipBEDbytes])
 
 ### BED byte to RAW math
 const onebyte = 0b10_10_10_10  # vector of ones in RAW format

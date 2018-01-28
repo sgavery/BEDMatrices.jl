@@ -1,6 +1,8 @@
 
 #### To Implement
 
+* when flipped SNPs should have the column name changed
+
 * write `REQUIRE` file
 * add rows argument for `BEDdot`
 * make column tool interface consistent with StatsBase.jl?

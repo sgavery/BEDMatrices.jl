@@ -28,18 +28,19 @@ Returns RAW format from the BED format quarter-byte:
 end
 
 """
-    breakbyte(byte::UInt8, bytemap=bytetoquarters)
+    breakbyte(byte::UInt8, bytemap=Consts.defaultbytemap)
 
-Return length-4 `Vector{UInt8}` of the RAW-formatted SNP quarters, as
+Return a `Tuple{Vararg{UInt8, 4}}` of the RAW-formatted SNP quarters, as
 determined by `bytemap`, in `byte`.
 
 """
-@inline function breakbyte(byte::UInt8, bytemap=Consts.bytetoquarters)
-    @inbounds return bytemap[byte + 1]
+@inline function breakbyte(byte::UInt8, bytemap=Consts.defaultbytemap, flip::Bool=false)
+    #    @inbounds return bytemap[byte + 1, flip + 1]
+    @inbounds return bytemap[byte + 1, flip + 1]
 end
 
-@inline function breakbyte(byte::UInt8, bytemap, snpind::Int)
-    @inbounds return bytemap[byte + 1][snpind]
+@inline function breakbyte(byte::UInt8, bytemap, snpind::Int, flip::Bool=false)
+    @inbounds return breakbyte(byte, bytemap, flip)[snpind]
 end
 
 # Approach from Quantgen/BEDMatrix: shift by 2(n - 1) and then mask
@@ -121,20 +122,25 @@ BEDmode(bytevector::Vector{UInt8}) = BEDmode(bytevector[3])
 getbytemap{T}(navalue::T) = getbytemap((convert(T, 0b10), navalue,
                                         convert(T, 0b01), convert(T, 0b00)))
 function getbytemap{T}(quartermap::Tuple{T, T, T, T})
-    bytemap = [(rawformat(snp1, quartermap), rawformat(snp2, quartermap),
-                rawformat(snp3, quartermap), rawformat(snp4, quartermap)) for
-               snp4 in 0b00:0b11 for
-               snp3 in 0b00:0b11 for
-               snp2 in 0b00:0b11 for
-               snp1 in 0b00:0b11]
+    bytemap = hcat([(rawformat(byte & 0b00_00_00_11, quartermap),
+                     rawformat((byte & 0b00_00_11_00) >> 2, quartermap),
+                     rawformat((byte & 0b00_11_00_00) >> 4, quartermap),
+                     rawformat((byte & 0b11_00_00_00) >> 6, quartermap)) for
+                    byte in 0x00:0xff],
+                   [(rawformat(byte & 0b00_00_00_11, quartermap),
+                     rawformat((byte & 0b00_00_11_00) >> 2, quartermap),
+                     rawformat((byte & 0b00_11_00_00) >> 4, quartermap),
+                     rawformat((byte & 0b11_00_00_00) >> 6, quartermap)) for
+                    byte in Consts.flipBEDbytes])
 
     bytemap
 end
 
 """
-    unsafe_breakbyte!(vector::AbstractArray, byte::UInt8, 
+    unsafe_breakbyte!(vector::AbstractArray, byte::UInt8,
                       bytemap=bytetoquarters, vecstart=1,
-                      quarterstart=1, quarterstop=4)
+                      quarterstart=1, quarterstop=4,
+                      flip::Bool=false)
 
 Fills `vector` starting at `vecstart` with the `quarterstart`th snp
 through the `quarterstop`th snp in `byte`, as determined by `bytemap`.
@@ -145,11 +151,11 @@ through the `quarterstop`th snp in `byte`, as determined by `bytemap`.
 
 """
 function unsafe_breakbyte!(vector::AbstractArray, byte::UInt8,
-                           bytemap=Consts.bytetoquarters, vecstart=1,
-                           quarterstart=1, quarterstop=4)
+                           bytemap=Consts.bytetoquarters, flip::Bool=false,
+                           vecstart::Integer=1, quarterstart::Integer=1, quarterstop::Integer=4)
 
     @inbounds copy!(vector, vecstart,
-                    breakbyte(byte, bytemap), quarterstart,
+                    breakbyte(byte, bytemap, flip), quarterstart,
                     quarterstop - quarterstart + 1)
     vector
 end
@@ -182,49 +188,29 @@ function unsafe_copybytestosnps!(snparray::AbstractArray, bytearray::AbstractArr
                                  bytestop::Integer, quarterstop::Integer,
                                  deststart::Integer=1, bytemap=Consts.bytetoquarters,
                                  flip::Bool=false)
-    if flip # TODO: make DRY
-        # First byte
-        if quarterstart != 1
-            stop = ifelse(bytestart == bytestop, quarterstop, 4)
-            @inbounds unsafe_breakbyte!(snparray, flipBEDbyte(bytearray[bytestart]), bytemap, deststart, quarterstart, stop)
-            deststart += stop - quarterstart + 1
-            bytestart += 1
+
+    # First byte
+    if quarterstart != 1
+        stop = ifelse(bytestart == bytestop, quarterstop, 4)
+        @inbounds unsafe_breakbyte!(snparray, bytearray[bytestart], bytemap, flip,
+                                    deststart, quarterstart, stop)
+        deststart += stop - quarterstart + 1
+        bytestart += 1
+    end
+
+    if bytestart <= bytestop
+        # Last byte
+        if quarterstop != 4
+            @inbounds unsafe_breakbyte!(snparray, bytearray[bytestop], bytemap, flip,
+                                        deststart + 4*(bytestop - bytestart), 1, quarterstop)
+            bytestop -= 1
         end
 
-        if bytestart <= bytestop
-            # Last byte
-            if quarterstop != 4
-                @inbounds unsafe_breakbyte!(snparray, flipBEDbyte(bytearray[bytestop]), bytemap, deststart + 4*(bytestop - bytestart), 1, quarterstop)
-                bytestop -= 1
-            end
-
-            # Main course
-            @simd for bytej in bytestart:bytestop
-                @inbounds unsafe_breakbyte!(snparray, flipBEDbyte(bytearray[bytej]), bytemap, deststart + 4*(bytej - bytestart))
-            end
+        # Main course
+        @simd for bytej in bytestart:bytestop
+            @inbounds unsafe_breakbyte!(snparray, bytearray[bytej], bytemap, flip,
+                                        deststart + 4*(bytej - bytestart))
         end
-    else
-        # First byte
-        if quarterstart != 1
-            stop = ifelse(bytestart == bytestop, quarterstop, 4)
-            @inbounds unsafe_breakbyte!(snparray, bytearray[bytestart], bytemap, deststart, quarterstart, stop)
-            deststart += stop - quarterstart + 1
-            bytestart += 1
-        end
-
-        if bytestart <= bytestop
-            # Last byte
-            if quarterstop != 4
-                @inbounds unsafe_breakbyte!(snparray, bytearray[bytestop], bytemap, deststart + 4*(bytestop - bytestart), 1, quarterstop)
-                bytestop -= 1
-            end
-
-            # Main course
-            @simd for bytej in bytestart:bytestop
-                @inbounds unsafe_breakbyte!(snparray, bytearray[bytej], bytemap, deststart + 4*(bytej - bytestart))
-            end
-        end
-
     end
 
     return snparray
@@ -234,7 +220,7 @@ end
 ######################### Reading .bed into a Matrix #########################
 
 """
-    BEDintomatrix{T<:Real}(bedfilename::AbstractString; datatype::Type{T}=UInt8, 
+    BEDintomatrix{T<:Real}(bedfilename::AbstractString; datatype::Type{T}=UInt8,
                            navalue=NA_byte, n::Integer=0, p::Integer=0, use_mmap=true)
 
 Returns a `Matrix{T}` representation of the BED file `bedfilename`. If
@@ -354,7 +340,7 @@ immutable BEDMatrix{T, S<:AbstractMatrix} <: DenseArray{T, 2}
     _byteheight::Int             # number of bytes in each column
     _lastrowSNPheight::Int       # number of SNPs in last byte of each column
 
-    _bytemap::Vector{Tuple{T, T, T, T}}  # quarters for 0x00:0xff
+    _bytemap::Matrix{Tuple{T, T, T, T}}  # quarters and flipped quarters for 0x00:0xff
 
     _flip::BitVector                     # whether to flip SNP major--minor
                                          # allele encoding for each SNP
@@ -368,7 +354,7 @@ immutable BEDMatrix{T, S<:AbstractMatrix} <: DenseArray{T, 2}
         size(X) == (byteheight, p) || throw(DimensionMismatch("Matrix dimensions $(size(X)) do not agree with supplied BED dimensions (n = $n, p = $p)"))
         length(colnames) == p || throw(DimensionMismatch("colnames has incorrect length"))
         length(rownames) == n || throw(DimensionMismatch("rownames has incorrect length"))
-        length(bytemap) == 256 || error("bytemap must be of length(256)")
+        size(bytemap) == (256, 2) || error("bytemap must be of size (256, 2)")
         length(flip) == p || throw(DimensionMismatch("flip has length $(length(flip)); expected length of p = $p"))
 
         return new(n, p, X, navalue, path, colnames, rownames,
@@ -436,8 +422,11 @@ julia> rownames(bed)[1:5]
 
 """
 function BEDMatrix(bedfilename::AbstractString;
-                   datatype::DataType=Int8, nsamples::Integer=0, nSNPs::Integer=0, navalue=NA_byte,
-                   famfile::AbstractString="", bimfile::AbstractString="", quartermap::Tuple=Consts.quarterstohuman, flip::AbstractVector=Int[])
+                   datatype::DataType=Int8,
+                   nsamples::Integer=0, nSNPs::Integer=0, navalue=NA_byte,
+                   famfile::AbstractString="", bimfile::AbstractString="",
+                   quartermap::Tuple=Consts.quarterstohuman, flip::AbstractVector=Int[])
+
     if !isfile(bedfilename)
         isfile(bedfilename*".bed") || error("Cannot find file \"$bedfilename\"")
         bedfilename = bedfilename*".bed"
@@ -602,6 +591,7 @@ function setflips!{S<:AbstractString}(B::BEDMatrix, flip_names::AbstractVector{S
     B._flip
 end
 
+
 #################### Indexing ####################
 
 Base.getindex{T<:AbstractString}(B::BEDMatrix, rownames::AbstractVector{T}, col) = B[map(name -> getrow(B, name), rownames), col]
@@ -659,14 +649,7 @@ end
 function unsafe_getindex{T, S}(B::BEDMatrix{T, S}, row::Integer, col::Integer)
     byterow, snpind = rowtobytequarter(row)
 
-    # @inbounds snp = convert(T, quarter(B.X[byterow, col], snpind))
-    @inbounds begin
-        if B._flip[col]
-            return breakbyte(flipBEDbyte(B.X[byterow, col]), B._bytemap, snpind)
-        else
-            return breakbyte(B.X[byterow, col], B._bytemap, snpind)
-        end
-    end
+    @inbounds return breakbyte(B.X[byterow, col], B._bytemap, snpind, B._flip[col])
 end
 
 function unsafe_getcol{T, S}(B::BEDMatrix{T, S}, col::Integer)
@@ -714,11 +697,8 @@ fourquarters[snpind]`.
 """
 function getquarterblock(B::BEDMatrix, row::Integer, col::Integer)
     byterow, snpind = rowtobytequarter(row)
-    if B._flip[col]
-        @inbounds return (breakbyte(flipBEDbyte(B.X[byterow, col]), B._bytemap), byterow, snpind)
-    else
-        @inbounds return (breakbyte(B.X[byterow, col], B._bytemap), byterow, snpind)
-    end
+
+    @inbounds return (breakbyte(B.X[byterow, col], B._bytemap, B._flip[col]), byterow, snpind)
 end
 
 """
