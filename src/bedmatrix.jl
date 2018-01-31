@@ -35,7 +35,6 @@ determined by `bytemap`, in `byte`.
 
 """
 @inline function breakbyte(byte::UInt8, bytemap=Consts.defaultbytemap, flip::Bool=false)
-    #    @inbounds return bytemap[byte + 1, flip + 1]
     @inbounds return bytemap[byte + 1, flip + 1]
 end
 
@@ -135,6 +134,7 @@ function getbytemap{T}(quartermap::Tuple{T, T, T, T})
 
     bytemap
 end
+
 
 """
     unsafe_breakbyte!(vector::AbstractArray, byte::UInt8,
@@ -364,8 +364,9 @@ end
 
 """
     BEDMatrix(bedfilename::AbstractString;
-              datatype::DataType=UInt8, nsamples::Integer=0, nSNPs::Integer=0, navalue=NA_byte
-              famfile::AbstractString="", bimfile::AbstractString="", flip=AbstractVector)
+              datatype::DataType=Int8, nsamples::Integer=0, nSNPs::Integer=0, navalue=NA_byte
+              famfile::AbstractString="", bimfile::AbstractString="",
+              quartermap::Tuple=Consts.quarterstohuman, flip::AbstractVector=[])
 
 Create a `BEDMatrix` of type `datatype` using memory mapping of BED
 file, `bedfilename`. Use `navalue` for missing values. `famfile` and
@@ -377,17 +378,37 @@ rownames/colnames will be generic.
 
 `convert(datatype, x)` must work for `x` in `[0b00, 0b01, 0b10, navalue]`.
 
+## Optional arguments
+ - `datatype`: the return type for indexing.
+ - `nsamples`: number of samples if .fam file cannot be found
+ - `nSNPs`: the number of SNPs if .bim file cannot be found
+ - `navalue`: the representation of missing values; this
+   should not be used with quartermap.
+ - `famfile`: the .fam file, only needed if the .fam file does
+   not have the same base name as `bedfilename`.
+ - `bimfile`: the .bim file, only needed if the .bim file does
+   not have the same base name as `bedfilename`.
+ - `quartermap`: a `Tuple` of the respective representation of
+   homozygous minor, homozygous major, missing, and heterozygous
+   values. Useful if you don't want to use standard RAW format
+   encoding.
+ - `flip`: a `Vector` of indices that should have the major--minor
+   representation flipped. `flip` may either be a list of indices, a
+   logical vector with `false` representing no flipping, or a list of
+   columnnames. This may be recovered or changed later using
+   `getflips` and `setflips!`, respectively.
+
 ## Examples
 ```julia
 julia> bed = BEDMatrix("test/data/example.bed");
 
 julia> bed[1:5, 1:5]
-5×5 Array{UInt8,2}:
- 0x00  0x01  0x01  0x01  0x00
- 0x01  0x01  0x01  0x01  0x03
- 0x01  0x00  0x00  0x02  0x00
- 0x02  0x00  0x00  0x00  0x01
- 0x00  0x01  0x00  0x00  0x00
+5×5 Array{Int8,2}:
+ 0  1  1  1  0
+ 1  1  1  1  3
+ 1  0  0  2  0
+ 2  0  0  0  1
+ 0  1  0  0  0
 
 julia> bed = BEDMatrix("test/data/example", datatype=Nullable{Int}, navalue=Nullable{Int}());
 
@@ -509,6 +530,9 @@ end
 
 readcolnames(bimfile::AbstractString) = map(bimcolname, readlines(bimfile))
 
+
+######################## Getters, Properties, and Setters ########################
+
 Base.size(B::BEDMatrix) = (B.n, B.p)
 function Base.size(B::BEDMatrix, k::Integer)
     k > 0 || Base.throw_boundserror(size(B), k)
@@ -558,8 +582,44 @@ NArep(B::BEDMatrix) = B.navalue
 getrow(B::BEDMatrix, rowname::AbstractString) = findfirst(B.rownames, rowname)
 getcol(B::BEDMatrix, colname::AbstractString) = findfirst(B.colnames, colname)
 
+function _get_quartermap_from_bytemap(bytemap::Matrix)
+    # 0b11_10_01_00 is the BED encoding for (homozygous minor,
+    # homozygous major, missing, heterozygous). Recall the reverse
+    # (little endian-like) order of the SNPs.
+    bytemap[0b11_10_01_00 + 1, false + 1]
+end
+
+"""
+    getquartermap(bed::BEDMatrix)
+
+Returns the `quartermap` for `bed`. This is a `Tuple` of four values
+giving the representation of respectively (homozygous minor,
+homozygous major, missing value, heterozygous).
+
+"""
+function getquartermap(bed::BEDMatrix)
+    _get_quartermap_from_bytemap(bed._bytemap)
+end
+
+"""
+    getflips(B::BEDMatrix)
+
+Returns a `Vector{Int}` of the columns which have a flipped major--minor allele
+representation. Use `setflips!` to change this.
+
+"""
 getflips(B::BEDMatrix) = find(B._flip)
 
+
+"""
+    setflips!(B::BEDMatrix, indices)
+
+(Re)sets which columns of the BEDMatrix use a flipped major--minor
+representation. For example, `setflips!(bed, [])` would make all columns use the
+standard encoding and `setflips!(bed, indices(bed, 2))` would make all columns
+use a flipped representation.
+
+"""
 function setflips!(B::BEDMatrix, flip_logical::AbstractVector{Bool})
     length(flip_logical) == size(B, 2) || throw(DimensionsMismatch("flip had incorrect length"))
     copy!(B._flip, flip_logical)
@@ -571,7 +631,7 @@ function setflips!{K<:Integer}(B::BEDMatrix, flip_indices::AbstractVector{K})
 
     fill!(B._flip, false)
 
-    for col in flip_indices
+    @inbounds for col in flip_indices
         B._flip[col] = true
     end
 
@@ -579,6 +639,8 @@ function setflips!{K<:Integer}(B::BEDMatrix, flip_indices::AbstractVector{K})
 end
 
 function setflips!{S<:AbstractString}(B::BEDMatrix, flip_names::AbstractVector{S})
+    # I don't do this in the same loop as below, since I want an
+    # atomic operation.
     for name in flip
         name in colnames || error("\"$name\" in flip is not a column_name")
     end
@@ -699,73 +761,4 @@ function getquarterblock(B::BEDMatrix, row::Integer, col::Integer)
     byterow, snpind = rowtobytequarter(row)
 
     @inbounds return (breakbyte(B.X[byterow, col], B._bytemap, B._flip[col]), byterow, snpind)
-end
-
-"""
-    tocontiguous(index::AbstractVector{Bool})
-
-Takes a logical index (vector of `Bool`s for each index) and converts
-it into a `Vector` of `UnitRange`s. This is especially useful for
-multicolumn or repeated uses of the same `index` to exploit the
-performance benefits of byte-wise calculations.
-
-"""
-function tocontiguous(index::AbstractVector{Bool})
-    n = length(index)
-
-    ranges = Vector{UnitRange{Int}}(n)
-    start = findfirst(index)
-
-    # If there are no indices return []
-    if start == 0
-        return resize!(ranges, 0)
-    end
-
-    stop = findlast(index)
-
-    oldidx = idx = start - 1
-    rangeidx = 0
-    while idx < stop
-        oldidx = idx
-        idx = findnext(!, index, idx + 1)
-        idx == 0 && break
-
-        if oldidx + 1 < idx
-            rangeidx += 1
-            ranges[rangeidx] = (oldidx + 1):(idx - 1)
-        end
-    end
-
-    if idx == 0 && oldidx < stop
-        rangeidx += 1
-        ranges[rangeidx] = (oldidx + 1):stop
-    end
-
-    resize!(ranges, rangeidx)
-end
-
-"""
-    tocontiguous{T<:Integer}(index::AbstractVector{T})
-
-Takes a `Vector` of indices and converts it into a `Vector` of
-`UnitRange`s.
-
-"""
-function tocontiguous{T<:Integer}(index::AbstractVector{T})
-    n = length(index)
-    ranges = Vector{UnitRange{Int}}(n)
-
-    oldidx = idx = 1
-    rangeidx = 0
-    while idx <= n
-        oldidx = idx
-        idx += 1
-        while idx <= n && (index[idx] == index[oldidx] + (idx - oldidx))
-            idx += 1
-        end
-        rangeidx += 1
-        ranges[rangeidx] = index[oldidx]:index[idx - 1]
-    end
-
-    resize!(ranges, rangeidx)
 end

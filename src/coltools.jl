@@ -381,12 +381,6 @@ function column_dist(B::BEDMatrix, col::Integer, row::Integer)
 end
 
 function column_dist(B::BEDMatrix, col::Integer, indices::AbstractVector{Bool})
-    # Heuristic for converting to contiguous ranges
-    # move the constants 0.9 and 100 to constants.jl
-    if countnz(indices) > max(0.9*B.n, 100)
-        return column_dist(B, col, tocontiguous(indices))
-    end
-
     zero_count = 0
     one_count = 0
     two_count = 0
@@ -411,14 +405,7 @@ function column_dist(B::BEDMatrix, col::Integer, indices::AbstractVector{Bool})
     return (zero_count, one_count, two_count, na_count)
 end
 
-# TODO: Compare performance of two approaches, and settle on heuristic
 function column_dist{T <: Integer}(B::BEDMatrix, col::Integer, inds::AbstractVector{T})
-    # Heuristic for converting to contiguous ranges
-    # move the constants 0.9 and 100 to constants.jl
-    if length(inds) > max(0.9*B.n, 100)
-        return column_dist(B, col, tocontiguous(inds))
-    end
-
     zero_count = 0
     one_count = 0
     two_count = 0
@@ -441,34 +428,12 @@ function column_dist{T <: Integer}(B::BEDMatrix, col::Integer, inds::AbstractVec
     return (zero_count, one_count, two_count, na_count)
 end
 
-function column_dist{R <: AbstractUnitRange}(B::BEDMatrix, col::Integer, ranges::Vector{R})
-    zero_count = 0
-    one_count = 0
-    two_count = 0
-    na_count = 0
-
-    for rrange in ranges
-        counttup = column_dist(B, col, rrange)
-
-        zero_count += counttup[1]
-        one_count += counttup[2]
-        two_count += counttup[3]
-        na_count += counttup[4]
-    end
-
-    return (zero_count, one_count, two_count, na_count)
-end
-
 """
     column_dist(B::BEDMatrix, col::Integer, rows=(:))
 
 Returns a length-4 `Tuple` of the number of `0`s, `1`s, `2`s, and
-`NArep(B)`s in `B[rows, col]`. `rows` may be a `UnitRange`, `Vector` of
-`UnitRange`s, `Vector` of indices, or a logical index
-(`Vector{Bool}`).
-
-In the latter two cases, `rows` may be converted into
-`Vector{UnitRange}` for better performance.
+`NArep(B)`s in `B[rows, col]`. `rows` may be a `UnitRange`, `Vector`
+of indices, or a logical index (`Vector{Bool}`).
 
 """
 function column_dist(B::BEDMatrix, col::Integer, rrange::AbstractUnitRange)
@@ -523,6 +488,7 @@ function unsafe_column_dist(X::Matrix{UInt8}, col::Integer, bytestart::Integer, 
 
     return zero_count, one_count, two_count, na_count
 end
+
 
 """
     column_sum{T, S}(B::BEDMatrix{T, S}, col::Integer, rows=(:))
@@ -607,6 +573,7 @@ function column_sum(func_qvec::Tuple, B::BEDMatrix, col::Integer, rows=(:))
     @inbounds return tuple_dot(func_qvec, counts)
 end
 
+
 """
     tuple_dot(t1::Tuple, t2::Tuple)
 
@@ -622,6 +589,7 @@ function tuple_dot(t1::Tuple, t2::Tuple)
     end
     acc
 end
+
 
 """
     column_hasNAs(B::BEDMatrix, col::Integer, rows=(:))
@@ -797,6 +765,7 @@ function column_dot{T, S, U, R}(BL::BEDMatrix{T, S}, colL::Integer, BR::BEDMatri
     dotsum
 end
 
+
 function column_NAsup_dot{T, S}(B::BEDMatrix{T, S}, col::Integer, v::AbstractArray)
     @boundscheck B.n == length(v) || throw(DimensionMismatch("v has incorrect length"))
 
@@ -811,6 +780,7 @@ function column_NAsup_dot{T, S}(B::BEDMatrix{T, S}, col::Integer, v::AbstractArr
 
     dotsum
 end
+
 
 """
     column_dist_dot{T, S}(B::BEDMatrix{T, S}, col::Integer, v::AbstractArray, rows=(:))
@@ -954,7 +924,8 @@ function column_mean(B::BEDMatrix, col::Integer, rows=(:))
     @inbounds return (counts[2] + 2.0*counts[3])/(B.n - counts[4])
 end
 
-# name matches `StatsBase.mean_and_var`, but interfaces does not
+
+# name matches `StatsBase.mean_and_var`, but interface does not
 """
     column_mean_and_var(B::BEDMatrix, col::Integer, rows=(:))
 
@@ -970,6 +941,7 @@ function column_mean_and_var(B::BEDMatrix, col::Integer, rows=(:))
 
     return μ, σ2
 end
+
 
 # name matches with `StatsBase.mean_and_std`, but interface does not
 """

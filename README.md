@@ -34,6 +34,7 @@ Features
   multi-column operations will be provided elsewhere, along with
   regression and other statistical analysis tools.)
 
+
 Examples/Basic Usage
 -------------------
 
@@ -53,18 +54,18 @@ example, we may index into it as
 
 ```julia
 julia> bed[2:12, 1:10]
-11×10 Array{UInt8,2}:
- 0x01  0x01  0x01  0x01  0x03  0x02  0x02  0x02  0x01  0x01
- 0x01  0x00  0x00  0x02  0x00  0x00  0x01  0x02  0x00  0x01
- 0x02  0x00  0x00  0x00  0x01  0x00  0x02  0x01  0x01  0x02
- 0x00  0x01  0x00  0x00  0x00  0x01  0x01  0x00  0x01  0x00
- 0x01  0x01  0x01  0x00  0x00  0x00  0x00  0x02  0x01  0x01
- 0x01  0x00  0x02  0x00  0x03  0x00  0x01  0x02  0x03  0x00
- 0x01  0x02  0x02  0x00  0x01  0x02  0x01  0x00  0x02  0x00
- 0x01  0x01  0x00  0x01  0x00  0x01  0x01  0x01  0x00  0x01
- 0x01  0x02  0x01  0x01  0x02  0x00  0x01  0x01  0x00  0x01
- 0x02  0x01  0x01  0x00  0x01  0x00  0x01  0x00  0x02  0x00
- 0x02  0x00  0x00  0x01  0x01  0x02  0x00  0x01  0x00  0x01
+11×10 Array{Int8,2}:
+ 1  1  1  1  3  2  2  2  1  1
+ 1  0  0  2  0  0  1  2  0  1
+ 2  0  0  0  1  0  2  1  1  2
+ 0  1  0  0  0  1  1  0  1  0
+ 1  1  1  0  0  0  0  2  1  1
+ 1  0  2  0  3  0  1  2  3  0
+ 1  2  2  0  1  2  1  0  2  0
+ 1  1  0  1  0  1  1  1  0  1
+ 1  2  1  1  2  0  1  1  0  1
+ 2  1  1  0  1  0  1  0  2  0
+ 2  0  0  1  1  2  0  1  0  1
 ```
 
 If you prefer to use a different numeric type like `Float64`, you can
@@ -88,7 +89,7 @@ julia> bed[2:12, 1:10]
  2.0  0.0  0.0  1.0  1.0  2.0  0.0  1.0  0.0  1.0
 ```
 
-Note that `3.0` (or `0x03` in the previous example) currently is the
+Note that `3.0` (or `3` in the previous example) currently is the
 default indicator for missing values; this may change. This is set by
 `BEDMatrices.NA_byte`:
 
@@ -213,7 +214,7 @@ julia> colnames(bed)[1:10]
  "snp9_C"
 ```
 
-The row and column names may used for indexing:
+The row and column names may be used for indexing:
 
 ```julia
 julia> bed["per0_per0", 1]
@@ -309,15 +310,20 @@ returns the column distribution: the number of 0s, 1s, 2s, and NAs in
 one needs about an individual SNP on (a subset of) the sample
 population; indeed this is used by many of the other methods.
 
+
 BED format details
 ------------------
 
 See [PLINK1 description](http://zzz.bwh.harvard.edu/plink/binary.shtml) and [PLINK2 description](https://www.cog-genomics.org/plink2/formats#bed) for details about the format.
 
+
 Other julia packages supporting BED format in some capacity
 -----------------------------------------------------------
+* [PLINK.jl](https://github.com/klkeys/PLINK.jl)
+* [OpenMendel](https://openmendel.github.io/), see [SnpArrays.jl](https://openmendel.github.io/SnpArrays.jl/latest/)
 * [JWAS.jl](https://github.com/reworkhow/JWAS.jl)
 * [StatGenData.jl](https://github.com/dmbates/StatGenData.jl)
 * [VarianceComponentTest.jl](https://github.com/Tao-Hu/VarianceComponentTest.jl)
+* [Bio.jl](http://biojulia.net/Bio.jl/latest/)
 
 #### See [Julia.jl](https://github.com/svaksha/Julia.jl/blob/master/Biology.md#genomics) for a listing of genomics tools in julia.

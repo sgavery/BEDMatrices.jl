@@ -151,28 +151,28 @@ end
     end
 end
 
-@testset "tocontiguous" begin
-    for rrange in rowranges
-        rows = collect(rrange)
-        if isempty(rows)
-            @test BEDMatrices.tocontiguous(rows) == Vector{Int}(0)
-        else
-            @test BEDMatrices.tocontiguous(rows)[1] == rrange
-        end
-    end
-
-    for rows in rowarrays[2:end]
-        @test mapreduce(collect, vcat, BEDMatrices.tocontiguous(rows)) == rows
-    end
-
-    for rlogic in rowlogicals
-        if any(rlogic)
-            @test [x in mapreduce(collect, vcat, BEDMatrices.tocontiguous(rlogic)) for x in 1:50] == rlogic
-        else
-            @test BEDMatrices.tocontiguous(rlogic) == []
-        end
-    end
-end
+# @testset "tocontiguous" begin
+#     for rrange in rowranges
+#         rows = collect(rrange)
+#         if isempty(rows)
+#             @test BEDMatrices.tocontiguous(rows) == Vector{Int}(0)
+#         else
+#             @test BEDMatrices.tocontiguous(rows)[1] == rrange
+#         end
+#     end
+# 
+#     for rows in rowarrays[2:end]
+#         @test mapreduce(collect, vcat, BEDMatrices.tocontiguous(rows)) == rows
+#     end
+# 
+#     for rlogic in rowlogicals
+#         if any(rlogic)
+#             @test [x in mapreduce(collect, vcat, BEDMatrices.tocontiguous(rlogic)) for x in 1:50] == rlogic
+#         else
+#             @test BEDMatrices.tocontiguous(rlogic) == []
+#         end
+#     end
+# end
 
 @testset "Column Tools" begin
     @testset "typealiases" begin
