@@ -22,7 +22,8 @@ end
 
 
 ### .bed file constants
-const plinkmagic = [0b0110_1100, 0b0001_1011]
+# Note: this is big endian [0x6c, 0x1b]
+const plinkmagic = 0b0110_1100_0001_1011
 const modes = Dict(0b0000_0001 => :SNPmajor,
                    0b0000_0000 => :SNPminor)
 

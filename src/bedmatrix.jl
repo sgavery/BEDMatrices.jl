@@ -45,8 +45,8 @@ end
 # Approach from Quantgen/BEDMatrix: shift by 2(n - 1) and then mask
 # result.
 #
-# Performance-wise, there does not seem to be a clear advantage of one
-# approach over the other.
+# Performance-wise, the lookup table approach of breakbyte is a bit
+# faster.
 """
     quarter(byte::UInt8, n::Integer, quartermap=quarterstohuman)
 
@@ -91,13 +91,22 @@ end
 Determine if first two "magic" bytes match plink format. If not throws
 an error, else returns `true`.
 
+If bytes are UInt16, then it should be in big endian format.
+
 """
-checkmagic(bytes::Vector{UInt8}) = (bytes[1:2] == Consts.plinkmagic ||
-                                    error("Bad magic: not a plink bed file"))
+# Puts first two bytes into big endian format
+checkmagic(bytes::Vector{UInt8}) = checkmagic(convert(UInt16, bytes[1]) << 8 + bytes[2])
+
+checkmagic(twobytes::UInt16) = (twobytes == Consts.plinkmagic ||
+                                error("Bad magic: not a plink bed file"))
 
 function checkmagic(bedstream::IO)
     seekstart(bedstream)
-    return checkmagic(read(bedstream, 2))
+
+    # Note that I don't just read(bedstream, UInt16) to avoid system
+    # endian dependence, although I believe julia currently only runs
+    # on little endian machines.
+    return checkmagic(convert(UInt16, read(bedstream, UInt8)) << 8 + read(bedstream, UInt8))
 end
 
 
@@ -117,6 +126,7 @@ function BEDmode(bedstream::IO)
 end
 
 BEDmode(bytevector::Vector{UInt8}) = BEDmode(bytevector[3])
+
 
 getbytemap{T}(navalue::T) = getbytemap((convert(T, 0b10), navalue,
                                         convert(T, 0b01), convert(T, 0b00)))
@@ -454,26 +464,8 @@ function BEDMatrix(bedfilename::AbstractString;
     end
     filebase = splitext(bedfilename)[1]
 
-    # read .fam file
-    famfile = famfile == "" ? filebase*".fam" : famfile
-    if isfile(famfile)
-        rownames = readrownames(famfile)
-    elseif nsamples > 0
-        rownames = [string("sample_", j) for j in 1:nsamples]
-    else
-        error("Cannot find FAM file \"$famfile\" and nsamples not provided")
-    end
-
-    # read .bim file
-    bimfile = bimfile == "" ? filebase*".bim" : bimfile
-    if isfile(bimfile)
-        colnames = readcolnames(bimfile)
-    elseif nSNPs > 0
-        colnames = [string("SNP_", j) for j in 1:nSNPs]
-    else
-        error("Cannot find BIM file \"$bimfile\" and nSNPs not provided")
-    end
-
+    rownames = create_rownames(filebase, famfile)
+    colnames = create_colnames(filebase, bimfile)
     n, p = length(rownames), length(colnames)
 
     X = open(filebase*".bed", "r") do bedfile
@@ -485,7 +477,7 @@ function BEDMatrix(bedfilename::AbstractString;
         Mmap.mmap(bedfile, Matrix{UInt8}, (ceil(Int, n/4), p))
     end
 
-    # validate quartermap
+    # validate quartermap and navalue
     if quartermap == Consts.quarterstohuman
         bytemap = getbytemap(convert(datatype, navalue))
     else
@@ -494,20 +486,7 @@ function BEDMatrix(bedfilename::AbstractString;
     end
 
     # Process and validate flip
-    if eltype(flip) == Bool
-        length(flip) == p || throw(DimensionMismatch("flip has length $(length(flip)) expected length of p = $p"))
-        flip = BitVector(flip)
-    elseif eltype(flip) <: Integer
-        checkbounds(Bool, 1:p, flip) || error("Invalid index in flip vector")
-        flip = BitVector(map(x -> x in flip, 1:p))
-    elseif eltype(flip) <: AbstractString
-        for name in flip
-            name in colnames || error("\"$name\" in flip is not a column_name")
-        end
-        flip = BitVector(map(x -> x in flip, colnames))
-    else
-        error("Invalid flip vector: expected logical, index, or column name vector")
-    end
+    flip = process_flip(flip, colnames)
 
     return BEDMatrix{datatype, typeof(X)}(n, p, X, convert(datatype, navalue),
                                           abspath(bedfilename), colnames, rownames, bytemap, flip)
@@ -523,12 +502,58 @@ famrowname(line) = join(split(line)[1:2], '_')
 
 readrownames(famfile::AbstractString) = map(famrowname, readlines(famfile))
 
+function create_rownames(filebase::AbstractString, famfile::AbstractString="")
+    famfile = famfile == "" ? filebase*".fam" : famfile
+    if isfile(famfile)
+        rownames = readrownames(famfile)
+    elseif nsamples > 0
+        rownames = [string("sample_", j) for j in 1:nsamples]
+    else
+        error("Cannot find FAM file \"$famfile\" and nsamples not provided")
+    end
+
+    return rownames
+end
+
 function bimcolname(line)
     fields = split(line)
     string(fields[2], '_', fields[5])
 end
 
 readcolnames(bimfile::AbstractString) = map(bimcolname, readlines(bimfile))
+
+function create_colnames(filebase::AbstractString, bimfile::AbstractString="")
+    bimfile = bimfile == "" ? filebase*".bim" : bimfile
+
+    if isfile(bimfile)
+        colnames = readcolnames(bimfile)
+    elseif nSNPs > 0
+        colnames = [string("SNP_", j) for j in 1:nSNPs]
+    else
+        error("Cannot find BIM file \"$bimfile\" and nSNPs not provided")
+    end
+end
+
+function process_flip(flip, colnames)
+    p = length(colnames)
+
+    if eltype(flip) == Bool
+        length(flip) == p || throw(DimensionMismatch("flip has length $(length(flip)) expected length of p = $p"))
+        flip = BitVector(flip)
+    elseif eltype(flip) <: Integer
+        checkbounds(Bool, 1:p, flip) || error("Invalid index in flip vector")
+        flip = BitVector(map(x -> x in flip, 1:p))
+    elseif eltype(flip) <: AbstractString
+        for name in flip
+            name in colnames || error("\"$name\" in flip is not a column_name")
+        end
+        flip = BitVector(map(x -> x in flip, colnames))
+    else
+        error("Invalid flip vector: expected logical, index, or column name vector")
+    end
+
+    return flip
+end
 
 
 ######################## Getters, Properties, and Setters ########################
