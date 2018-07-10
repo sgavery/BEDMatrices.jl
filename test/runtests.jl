@@ -111,6 +111,8 @@ end
             @test bed[rname, c] == exampledata[r, c]
             @test bed[r, cname] == exampledata[r, c]
             @test bed[rname, cname] == exampledata[r, c]
+            @test bed[rname, :] == exampledata[r, :]
+            @test bed[:, cname] == exampledata[:, c]
         end
     end
 

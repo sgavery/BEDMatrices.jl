@@ -685,12 +685,9 @@ Base.getindex{T<:AbstractString}(B::BEDMatrix, rownames::AbstractVector{T}, col)
 Base.getindex{T<:AbstractString}(B::BEDMatrix, row, colnames::AbstractVector{T}) = B[row, map(name -> getcol(B, name), colnames)]
 Base.getindex{T<:AbstractString, S<:AbstractString}(B::BEDMatrix, rownames::AbstractVector{S}, colnames::AbstractVector{T}) = B[map(name -> getrow(B, name), rownames), map(name -> getcol(B, name), colnames)]
 
-
-Base.getindex(B::BEDMatrix, rowname::AbstractString, col::Integer) = B[getrow(B, rowname), col]
-
-Base.getindex(B::BEDMatrix, row::Integer, colname::AbstractString) = B[row, getcol(B, colname)]
-
 Base.getindex(B::BEDMatrix, rowname::AbstractString, colname::AbstractString) = B[getrow(B, rowname), getcol(B, colname)]
+Base.getindex(B::BEDMatrix, rowname::AbstractString, col) = B[getrow(B, rowname), col]
+Base.getindex(B::BEDMatrix, row, colname::AbstractString) = B[row, getcol(B, colname)]
 
 # This is is the only getindex method we _need_, the other methods are
 # provided for better performance, or convenience.
