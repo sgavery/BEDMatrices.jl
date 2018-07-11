@@ -464,8 +464,8 @@ function BEDMatrix(bedfilename::AbstractString;
     end
     filebase = splitext(bedfilename)[1]
 
-    rownames = create_rownames(filebase, famfile)
-    colnames = create_colnames(filebase, bimfile)
+    rownames = create_rownames(filebase, famfile, nsamples)
+    colnames = create_colnames(filebase, bimfile, nSNPs)
     n, p = length(rownames), length(colnames)
 
     X = open(filebase*".bed", "r") do bedfile
@@ -502,7 +502,7 @@ famrowname(line) = join(split(line)[1:2], '_')
 
 readrownames(famfile::AbstractString) = map(famrowname, readlines(famfile))
 
-function create_rownames(filebase::AbstractString, famfile::AbstractString="")
+function create_rownames(filebase::AbstractString, famfile::AbstractString="", nsamples::Integer=0)
     famfile = famfile == "" ? filebase*".fam" : famfile
     if isfile(famfile)
         rownames = readrownames(famfile)
@@ -522,7 +522,7 @@ end
 
 readcolnames(bimfile::AbstractString) = map(bimcolname, readlines(bimfile))
 
-function create_colnames(filebase::AbstractString, bimfile::AbstractString="")
+function create_colnames(filebase::AbstractString, bimfile::AbstractString="", nSNPs::Integer=0)
     bimfile = bimfile == "" ? filebase*".bim" : bimfile
 
     if isfile(bimfile)
