@@ -234,7 +234,7 @@ end
                            navalue=NA_byte, n::Integer=0, p::Integer=0, use_mmap=true)
 
 Returns a `Matrix{T}` representation of the BED file `bedfilename`. If
-the number or rows and columns, `n` and `p`, are not provided, then
+the number of rows or columns, `n` and `p`, are not provided, then
 they will attempt to be determined from corresponding .fam and .bim
 files. `use_mmap` determines whether to memory map the bedfile and
 then read into the matrix for potential speedups. Missing values are

@@ -3,10 +3,11 @@ BEDMatrices.jl
 
 Tools for efficiently reading, memory-mapping, and
 manipulating [PLINK](http://zzz.bwh.harvard.edu/plink/) (see
-also [PLINK1.9](https://www.cog-genomics.org/plink2)) BED formatted
+also [PLINK1.9](https://www.cog-genomics.org/plink2)) BED-formatted
 genotype data (.bed, .fam, .bim files)
 in [julia](http://julialang.org/). This package is, in part, based on the R
 package [BEDMatrix](https://github.com/QuantGen/BEDMatrix).
+
 
 Installation
 -----------
@@ -16,7 +17,7 @@ MSU [gitlab](https://gitlab.msu.edu/QuantGen/BEDMatrices.jl). To
 install, run the following
 
 ```julia
-julia> Pkg.clone("https://gitlab.msu.edu/QuantGen/BEDMatrices.jl")
+julia> Pkg.clone("https://[username]@gitlab.msu.edu/QuantGen/BEDMatrices.jl.git")
 ```
 
 You will be prompted for your gitlab credentials.
@@ -90,8 +91,9 @@ julia> bed[2:12, 1:10]
 ```
 
 Note that `3.0` (or `3` in the previous example) currently is the
-default indicator for missing values; this may change. This is set by
-`BEDMatrices.NA_byte`:
+default indicator for missing values; this may change. (While this is
+in many ways an unfortunate choice, it is a literal translation of the
+BED format.) This is set by `BEDMatrices.NA_byte`:
 
 ```julia
 julia> BEDMatrices.NA_byte
@@ -225,7 +227,10 @@ julia> bed["per0_per0", "snp0_A"]
 ```
 
 See help on `BEDMatrix` for information on handling .fam and .bim
- files that are missing or have different names/paths.
+files that are missing or have different names/paths. There is also
+information on how to flip the major-minor allele reprentation of
+selected SNPs. For the latter, see also `setflips!`. One can also use
+a custom representation of SNP data.
 
 ```julia
 help?> BEDMatrix
@@ -319,6 +324,7 @@ See [PLINK1 description](http://zzz.bwh.harvard.edu/plink/binary.shtml) and [PLI
 
 Other julia packages supporting BED format in some capacity
 -----------------------------------------------------------
+
 * [PLINK.jl](https://github.com/klkeys/PLINK.jl)
 * [OpenMendel](https://openmendel.github.io/), see [SnpArrays.jl](https://openmendel.github.io/SnpArrays.jl/latest/)
 * [JWAS.jl](https://github.com/reworkhow/JWAS.jl)
