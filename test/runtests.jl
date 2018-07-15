@@ -111,17 +111,17 @@ end
             @test bed[rname, c] == exampledata[r, c]
             @test bed[r, cname] == exampledata[r, c]
             @test bed[rname, cname] == exampledata[r, c]
-            @test bed[rname, :] == exampledata[r, :]
-            @test bed[:, cname] == exampledata[:, c]
+            @test bed[rname, :] == convert(Vector{eltype(bed)}, exampledata[r, :])
+            @test bed[:, cname] == convert(Vector{eltype(bed)}, exampledata[:, c])
         end
     end
 
     @testset "arrays" begin
         for cvec in colarrays
             cnames = [examplecols[c] for c in cvec]
-            @test bed[11, cnames] == exampledata[11, cvec]
-            @test bed[:, cnames] == exampledata[:, cvec]
-            @test bed[2:end, cnames] == exampledata[2:end, cvec]
+            @test bed[11, cnames] == convert(Vector{eltype(bed)}, exampledata[11, cvec])
+            @test bed[:, cnames] == convert(Matrix{eltype(bed)}, exampledata[:, cvec])
+            @test bed[2:end, cnames] == convert(Matrix{eltype(bed)}, exampledata[2:end, cvec])
 
             for rvec in rowarrays
                 rnames = [examplerows[r] for r in rvec]
@@ -130,9 +130,9 @@ end
         end
         for rvec in rowarrays
             rnames = [examplerows[r] for r in rvec]
-            @test bed[rnames, 11] == exampledata[rvec, 11]
-            @test bed[rnames, :] == exampledata[rvec, :]
-            @test bed[rnames, 2:end] == exampledata[rvec, 2:end]
+            @test bed[rnames, 11] == convert(Vector{eltype(bed)}, exampledata[rvec, 11])
+            @test bed[rnames, :] == convert(Matrix{eltype(bed)}, exampledata[rvec, :])
+            @test bed[rnames, 2:end] == convert(Matrix{eltype(bed)}, exampledata[rvec, 2:end])
         end
     end
 end
