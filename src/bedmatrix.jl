@@ -338,19 +338,19 @@ end
 # http://docs.julialang.org/en/stable/manual/performance-tips/#type-declarations
 
 immutable BEDMatrix{T, S<:AbstractMatrix} <: DenseArray{T, 2}
-    n::Int                         # number of samples (rows)
-    p::Int                         # number of SNPs (columns)
-    X::S                           # Matrix{UInt8} bed file
-    navalue::T                     # representation of missing
+    n::Int                               # number of samples (rows)
+    p::Int                               # number of SNPs (columns)
+    X::S                                 # Matrix{UInt8} bed file
+    navalue::T                           # representation of missing
 
-    path::String                   # file location
-    colnames::Vector{String}       # SNP labels, can be used for indexing
-    rownames::Vector{String}       # sample labels, can be used for indexing
-    colnamemap::Dict{String, Int}  # for quick name indexing by column
-    rownamemap::Dict{String, Int}  # for quick name indexing by row
+    path::String                         # file location
+    colnames::Vector{String}             # SNP labels, can be used for indexing
+    rownames::Vector{String}             # sample labels, can be used for indexing
+    colnamemap::Dict{String, Int}        # for quick name indexing by column
+    rownamemap::Dict{String, Int}        # for quick name indexing by row
 
-    _byteheight::Int               # number of bytes in each column
-    _lastrowSNPheight::Int         # number of SNPs in last byte of each column
+    _byteheight::Int                     # number of bytes in each column
+    _lastrowSNPheight::Int               # number of SNPs in last byte of each column
 
     _bytemap::Matrix{Tuple{T, T, T, T}}  # quarters and flipped quarters for 0x00:0xff
 
