@@ -1,13 +1,15 @@
 BEDMatrices.jl
 ==============
 
+[![Build Status](https://travis-ci.com/sgavery/BEDMatrices.jl.svg?branch=master)](https://travis-ci.com/sgavery/BEDMatrices.jl)
+----
+
 Tools for efficiently reading, memory-mapping, and
 manipulating [PLINK](http://zzz.bwh.harvard.edu/plink/) (see
 also [PLINK1.9](https://www.cog-genomics.org/plink2)) BED-formatted
 genotype data (.bed, .fam, .bim files)
 in [julia](http://julialang.org/). This package is, in part, based on the R
 package [BEDMatrix](https://github.com/QuantGen/BEDMatrix).
-
 
 Installation
 -----------
