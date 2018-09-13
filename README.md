@@ -2,6 +2,8 @@ BEDMatrices.jl
 ==============
 
 [![Build Status](https://travis-ci.com/sgavery/BEDMatrices.jl.svg?branch=master)](https://travis-ci.com/sgavery/BEDMatrices.jl)
+[![Coverage Status](https://coveralls.io/repos/github/sgavery/BEDMatrices.jl/badge.svg?branch=master)](https://coveralls.io/github/sgavery/BEDMatrices.jl?branch=master)
+
 ----
 
 Tools for efficiently reading, memory-mapping, and
