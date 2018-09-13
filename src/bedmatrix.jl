@@ -106,7 +106,7 @@ function checkmagic(bedstream::IO)
     # Note that I don't just read(bedstream, UInt16) to avoid system
     # endian dependence, although I believe julia currently only runs
     # on little endian machines.
-    return checkmagic(convert(UInt16, (read(bedstream, UInt8)) << 8) + read(bedstream, UInt8))
+    return checkmagic((convert(UInt16, read(bedstream, UInt8)) << 8) + read(bedstream, UInt8))
 end
 
 
