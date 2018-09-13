@@ -128,9 +128,9 @@ end
 BEDmode(bytevector::Vector{UInt8}) = BEDmode(bytevector[3])
 
 
-getbytemap{T}(navalue::T) = getbytemap((convert(T, 0b10), navalue,
-                                        convert(T, 0b01), convert(T, 0b00)))
-function getbytemap{T}(quartermap::Tuple{T, T, T, T})
+getbytemap(navalue::T) where {T} = getbytemap((convert(T, 0b10), navalue,
+                                     convert(T, 0b01), convert(T, 0b00)))
+function getbytemap(quartermap::Tuple{T, T, T, T}) where {T}
     bytemap = hcat([(rawformat(byte & 0b00_00_00_11, quartermap),
                      rawformat((byte & 0b00_00_11_00) >> 2, quartermap),
                      rawformat((byte & 0b00_11_00_00) >> 4, quartermap),
@@ -241,12 +241,12 @@ then read into the matrix for potential speedups. Missing values are
 set to `navalue`.
 
 """
-function BEDintomatrix{T<:Real}(bedfilename::AbstractString;
-                                datatype::Type{T}=UInt8,
-                                navalue=NA_byte,
-                                n::Integer=0,
-                                p::Integer=0,
-                                use_mmap::Bool=true)
+function BEDintomatrix(bedfilename::AbstractString;
+                       datatype::Type{T}=UInt8,
+                       navalue=NA_byte,
+                       n::Integer=0,
+                       p::Integer=0,
+                       use_mmap::Bool=true) where {T<:Real}
     if !isfile(bedfilename)
         isfile(bedfilename*".bed") || error("Cannot find file \"$bedfilename\"")
         bedfilename = bedfilename*".bed"
@@ -280,7 +280,7 @@ function BEDintomatrix{T<:Real}(bedfilename::AbstractString;
     return A::Matrix{T}
 end
 
-function BEDintomatrix!{T<:Real}(A::AbstractMatrix{T}, bedvector::Vector{UInt8}, navalue=NA_byte)
+function BEDintomatrix!(A::AbstractMatrix{T}, bedvector::Vector{UInt8}, navalue=NA_byte) where {T<:Real}
     n, p = size(A)
     byteheight = ceil(Int, n/4)
     quarterstop = n - 4*(byteheight - 1)
@@ -302,7 +302,7 @@ to .bed file format. `A` must have correct dimensions, as determined
 via `BEDMatrices.BEDsize`, for example.
 
 """
-function BEDintomatrix!{T<:Real}(A::AbstractMatrix{T}, bedstream::IO, navalue=NA_byte)
+function BEDintomatrix!(A::AbstractMatrix{T}, bedstream::IO, navalue=NA_byte) where {T<:Real}
     n, p = size(A)
     bytestop = ceil(Int, n/4)
     quarterstop = n - 4*(bytestop - 1)
@@ -337,7 +337,7 @@ end
 # requires exposing the type as below. See discussion at
 # http://docs.julialang.org/en/stable/manual/performance-tips/#type-declarations
 
-immutable BEDMatrix{T, S<:AbstractMatrix} <: DenseArray{T, 2}
+struct BEDMatrix{T, S<:AbstractMatrix} <: DenseArray{T, 2}
     n::Int                               # number of samples (rows)
     p::Int                               # number of SNPs (columns)
     X::S                                 # Matrix{UInt8} bed file
@@ -357,9 +357,9 @@ immutable BEDMatrix{T, S<:AbstractMatrix} <: DenseArray{T, 2}
     _flip::BitVector                     # whether to flip SNP major--minor
                                          # allele encoding for each SNP
 
-    function BEDMatrix(n::Integer, p::Integer, X::AbstractMatrix{UInt8}, navalue,
-                       path::AbstractString, colnames::AbstractVector, rownames::AbstractVector,
-                       bytemap, flip::BitVector)
+    function BEDMatrix{T, S}(n::Integer, p::Integer, X::S, navalue,
+                             path::AbstractString, colnames::AbstractVector, rownames::AbstractVector,
+                             bytemap, flip::BitVector) where {T, S<:AbstractMatrix{UInt8}}
         byteheight = ceil(Int, n/4)
         lastrowheight = n - 4*(byteheight - 1)
 
@@ -380,8 +380,8 @@ immutable BEDMatrix{T, S<:AbstractMatrix} <: DenseArray{T, 2}
         end
 
 
-        return new(n, p, X, navalue, path, colnames, rownames, colnamemap, rownamemap,
-                   byteheight, lastrowheight, bytemap, flip)
+        return new{T, S}(n, p, X, navalue, path, colnames, rownames, colnamemap, rownamemap,
+                         byteheight, lastrowheight, bytemap, flip)
     end
 end
 
@@ -578,12 +578,12 @@ function Base.size(B::BEDMatrix, k::Integer)
     return k == 1 ? B.n : ifelse(k == 2, B.p, 1)
 end
 
-Base.linearindexing{T<:BEDMatrix}(::Type{T}) = Base.LinearSlow()
+Base.IndexStyle(::Type{T}) where {T<:BEDMatrix} = Base.IndexCartesian
 
 # not sure if this is the right definition; see
 # https://github.com/JuliaLang/julia/issues/16614.
 # This is the size of `B[:, :]`.
-Base.sizeof{T, S}(B::BEDMatrix{T, S}) = B.n*B.p*sizeof(T)
+Base.sizeof(B::BEDMatrix{T, S}) where {T, S} = B.n*B.p*sizeof(T)
 
 """
     path(B::BEDMatrix)
@@ -664,7 +664,7 @@ function setflips!(B::BEDMatrix, flip_logical::AbstractVector{Bool})
     B._flip
 end
 
-function setflips!{K<:Integer}(B::BEDMatrix, flip_indices::AbstractVector{K})
+function setflips!(B::BEDMatrix, flip_indices::AbstractVector{K}) where {K<:Integer}
     checkbounds(1:B.p, flip_indices)
 
     fill!(B._flip, false)
@@ -676,7 +676,7 @@ function setflips!{K<:Integer}(B::BEDMatrix, flip_indices::AbstractVector{K})
     B._flip
 end
 
-function setflips!{S<:AbstractString}(B::BEDMatrix, flip_names::AbstractVector{S})
+function setflips!(B::BEDMatrix, flip_names::AbstractVector{S}) where {S<:AbstractString}
     # I don't do this in the same loop as below, since I want an
     # atomic operation.
     for name in flip
@@ -694,16 +694,16 @@ end
 
 #################### Indexing ####################
 
-Base.getindex{T<:AbstractString}(B::BEDMatrix, rownames::AbstractVector{T}, col) = B[[getrow(B, rowname) for rowname in rownames], col]
-Base.getindex{T<:AbstractString}(B::BEDMatrix, row, colnames::AbstractVector{T}) = B[row, [getcol(B, colname) for colname in colnames]]
-Base.getindex{T<:AbstractString, S<:AbstractString}(B::BEDMatrix, rownames::AbstractVector{S}, colnames::AbstractVector{T}) = [B[row, col] for row in rownames, col in colnames]
+Base.getindex(B::BEDMatrix, rownames::AbstractVector{T}, col) where {T<:AbstractString} = B[[getrow(B, rowname) for rowname in rownames], col]
+Base.getindex(B::BEDMatrix, row, colnames::AbstractVector{T}) where {T<:AbstractString}= B[row, [getcol(B, colname) for colname in colnames]]
+Base.getindex(B::BEDMatrix, rownames::AbstractVector{S}, colnames::AbstractVector{T}) where {T<:AbstractString, S<:AbstractString} = [B[row, col] for row in rownames, col in colnames]
 
 Base.getindex(B::BEDMatrix, rowname::AbstractString, colname::AbstractString) = B[getrow(B, rowname), getcol(B, colname)]
 Base.getindex(B::BEDMatrix, rowname::AbstractString, col) = B[getrow(B, rowname), col]
 Base.getindex(B::BEDMatrix, row, colname::AbstractString) = B[row, getcol(B, colname)]
 
-Base.getindex{T<:AbstractString}(B::BEDMatrix, rownames::AbstractVector{T}, colname::AbstractString) = [B[row, colname] for row in rownames]
-Base.getindex{T<:AbstractString}(B::BEDMatrix, rowname::AbstractString, colnames::AbstractVector{T}) = [B[rowname, col] for col in colnames]
+Base.getindex(B::BEDMatrix, rownames::AbstractVector{T}, colname::AbstractString) where {T<:AbstractString} = [B[row, colname] for row in rownames]
+Base.getindex(B::BEDMatrix, rowname::AbstractString, colnames::AbstractVector{T}) where {T<:AbstractString} = [B[rowname, col] for col in colnames]
 
 # This is is the only getindex method we _need_, the other methods are
 # provided for better performance, or convenience.
@@ -719,7 +719,7 @@ function Base.getindex(B::BEDMatrix, ::Colon, col::Integer)
     unsafe_getcol(B, col)
 end
 
-function Base.getindex{T, S, K<:Integer}(B::BEDMatrix{T, S}, ::Colon, cols::AbstractVector{K})
+function Base.getindex(B::BEDMatrix{T, S}, ::Colon, cols::AbstractVector{K}) where {T, S, K<:Integer}
     @boundscheck checkbounds(B, :, cols)
 
     matrix = Matrix{T}(B.n, length(cols))
@@ -736,7 +736,7 @@ function Base.getindex(B::BEDMatrix, rrange::AbstractUnitRange, col::Integer)
     unsafe_getrowrange(B, rrange, col)
 end
 
-function Base.getindex{T, S, K <: Integer}(B::BEDMatrix{T, S}, rrange::AbstractUnitRange, cols::AbstractVector{K})
+function Base.getindex(B::BEDMatrix{T, S}, rrange::AbstractUnitRange, cols::AbstractVector{K}) where {T, S, K <: Integer}
     @boundscheck checkbounds(B, rrange, cols)
 
     matrix = Matrix{T}(length(rrange), length(cols))
@@ -746,32 +746,32 @@ function Base.getindex{T, S, K <: Integer}(B::BEDMatrix{T, S}, rrange::AbstractU
     return matrix
 end
 
-function unsafe_getindex{T, S}(B::BEDMatrix{T, S}, row::Integer, col::Integer)
+function unsafe_getindex(B::BEDMatrix{T, S}, row::Integer, col::Integer) where {T, S}
     byterow, snpind = rowtobytequarter(row)
 
     @inbounds return breakbyte(B.X[byterow, col], B._bytemap, snpind, B._flip[col])
 end
 
-function unsafe_getcol{T, S}(B::BEDMatrix{T, S}, col::Integer)
+function unsafe_getcol(B::BEDMatrix{T, S}, col::Integer) where {T, S}
     column = Vector{T}(B.n)
 
     unsafe_getcol!(column, B, col)
     return column
 end
 
-function unsafe_getcol!{T, S}(column::AbstractArray{T}, B::BEDMatrix{T, S}, col::Integer, deststart=1)
+function unsafe_getcol!(column::AbstractArray{T}, B::BEDMatrix{T, S}, col::Integer, deststart=1) where {T, S}
     @inbounds unsafe_copybytestosnps!(column, B.X, B._byteheight*(col - 1) + 1, 1, B._byteheight*col,
                                       B._lastrowSNPheight, deststart, B._bytemap, B._flip[col])
     return column
 end
 
-function unsafe_getrowrange{T, S}(B::BEDMatrix{T, S}, rrange::AbstractUnitRange, col::Integer)
+function unsafe_getrowrange(B::BEDMatrix{T, S}, rrange::AbstractUnitRange, col::Integer) where {T, S}
     vector = Vector{T}(length(rrange))
     unsafe_getrowrange!(vector, B, rrange, col)
     return vector
 end
 
-function unsafe_getrowrange!{T, S}(vector::AbstractArray{T}, B::BEDMatrix{T, S}, rrange::AbstractUnitRange, col::Integer, deststart=1)
+function unsafe_getrowrange!(vector::AbstractArray{T}, B::BEDMatrix{T, S}, rrange::AbstractUnitRange, col::Integer, deststart=1) where {T, S}
     bytestart, quarterstart = rowtobytequarter(first(rrange))
     bytestart += B._byteheight*(col - 1)
 

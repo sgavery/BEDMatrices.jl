@@ -1,0 +1,6 @@
+authors = ["Steven Avery <savery@msu.edu>"]
+name = "BEDMatrices"
+uuid = "fd48fea8-b6da-11e8-2710-0f863da72aa0"
+version = "0.1.0"
+
+[deps]

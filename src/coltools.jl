@@ -78,7 +78,7 @@ function bytedot(byteL::UInt8, byteR::UInt8, num_quarters::Integer, qoffset::Int
     bytedot(maskbyte(byteL, num_quarters, qoffset), byteR)
 end
 
-function bytedot{T}(byte::UInt8, v::AbstractArray{T}, voffset::Integer=0)
+function bytedot(byte::UInt8, v::AbstractArray{T}, voffset::Integer=0) where {T}
     @boundscheck checkbounds(v, voffset + 4)
 
     dotsum = zero(T)
@@ -99,7 +99,7 @@ qoffset)]` in BED format with `v[(voffset + 1):(voffset +
 num_quarters)]`. Missing values (in `byte`) are treated as zero.
 
 """
-function bytedot{T}(byte::UInt8, v::AbstractArray{T}, voffset::Integer, num_quarters::Integer, qoffset::Integer=0)
+function bytedot(byte::UInt8, v::AbstractArray{T}, voffset::Integer, num_quarters::Integer, qoffset::Integer=0) where {T}
     @boundscheck begin
         num_quarters + qoffset <= 4 || error("too many quarters")
         checkbounds(v, voffset + num_quarters)
@@ -135,7 +135,7 @@ function byteNAsum(bedbyte::UInt8, v::AbstractArray, voffset::Integer, num_quart
     @inbounds return bytedot(NAsup(bedbyte), v, voffset, num_quarters, qoffset)
 end
 
-function byteNAsum2{T}(bedbyte::UInt8, v::AbstractArray{T}, voffset::Integer=0)
+function byteNAsum2(bedbyte::UInt8, v::AbstractArray{T}, voffset::Integer=0) where {T}
     @boundscheck checkbounds(v, voffset + 4)
 
     dotsum = zero(T)
@@ -148,7 +148,7 @@ function byteNAsum2{T}(bedbyte::UInt8, v::AbstractArray{T}, voffset::Integer=0)
     dotsum
 end
 
-function byteNAsum2{T}(bedbyte::UInt8, v::AbstractArray{T}, voffset::Integer, num_quarters::Integer, qoffset::Integer=0)
+function byteNAsum2(bedbyte::UInt8, v::AbstractArray{T}, voffset::Integer, num_quarters::Integer, qoffset::Integer=0) where {T}
     @boundscheck begin
         num_quarters + qoffset <= 4 || error("too many quarters")
         checkbounds(v, voffset + num_quarters)
@@ -219,7 +219,7 @@ should be the desired behavior on missing entries, defaults to
 `BEDMatrix{T, Q}`.
 
 """
-quarterfuncvector{T}(func::Function, ::Type{T}=Int, func_na=0x00) = ntuple(q -> q < 4 ? func(convert(T, q - 1)) : convert(T, func_na), 4)
+quarterfuncvector(func::Function, ::Type{T}=Int, func_na=0x00) where {T} = ntuple(q -> q < 4 ? func(convert(T, q - 1)) : convert(T, func_na), 4)
 
 
 #################### SubArray Interface ####################
@@ -497,7 +497,7 @@ Returns the sum of non-missing entries in `B[rows, col]`, optimized
 for large `UnitRange`s of rows.
 
 """
-function column_sum{T, S}(B::BEDMatrix{T, S}, col::Integer, rows=(:))
+function column_sum(B::BEDMatrix{T, S}, col::Integer, rows=(:)) where {T, S}
     counts = column_dist(B, col, rows)
     @inbounds return convert(promote_type(T, Int), counts[2] + 2*counts[3])
 end
@@ -508,7 +508,7 @@ end
 Returns the sum of the squares of non-missing entries in `B[rows, col]`.
 
 """
-function column_sumabs2{T, S}(B::BEDMatrix{T, S}, col::Integer, rows=(:))
+function column_sumabs2(B::BEDMatrix{T, S}, col::Integer, rows=(:)) where {T, S}
     counts = column_dist(B, col, rows)
     @inbounds return convert(promote_type(T, Int), counts[2] + 4*counts[3])
 end
@@ -545,7 +545,7 @@ Apply `func` to `B[:, col]`, and return the sum. `NArep(B)` values are
 skipped.
 
 """
-function column_sum{T, S}(f::Function, B::BEDMatrix{T, S}, col::Integer, rows=(:))
+function column_sum(f::Function, B::BEDMatrix{T, S}, col::Integer, rows=(:)) where {T, S}
     column_sum(quarterfuncvector(f, T), B, col, rows)
 end
 
@@ -556,7 +556,7 @@ Apply `func` to `B[rows, col]` and return the sum. `func_na` is
 treated as the value of `func(NArep(B))`. (If omitted it is `0`.)
 
 """
-function column_sum{T, S}(f::Function, func_na, B::BEDMatrix{T, S}, col::Integer, rows=(:))
+function column_sum(f::Function, func_na, B::BEDMatrix{T, S}, col::Integer, rows=(:)) where {T, S}
     column_sum(quarterfuncvector(f, T, func_na), B, col, rows)
 end
 
@@ -697,7 +697,7 @@ Computes the scalar dot product between `B[:, col]` and `v`, with
 missing values in `B` treated as zero.
 
 """
-function column_dot{T, S}(B::BEDMatrix{T, S}, col::Integer, v::AbstractArray)
+function column_dot(B::BEDMatrix{T, S}, col::Integer, v::AbstractArray) where {T, S}
     @boundscheck B.n == length(v) || throw(DimensionMismatch("v has incorrect length"))
 
     dotsum = zero(promote_type(T, eltype(v), Int))  # Avoid overflow when T == UInt8
@@ -720,7 +720,7 @@ Computes the scalar dot product between `B[:, colL]` and `B[:, colR]`,
 treating missing values as zero.
 
 """
-function column_dot{T, S}(B::BEDMatrix{T, S}, colL::Integer, colR::Integer)
+function column_dot(B::BEDMatrix{T, S}, colL::Integer, colR::Integer) where {T, S}
     @boundscheck begin
         checkbounds(B, :, colL)
         checkbounds(B, :, colR)
@@ -745,7 +745,7 @@ Computes the scalar dot product between `BL[:, colL]` and
 `BR[:, colR]`, treating missing values as zero.
 
 """
-function column_dot{T, S, U, R}(BL::BEDMatrix{T, S}, colL::Integer, BR::BEDMatrix{U, R}, colR::Integer)
+function column_dot(BL::BEDMatrix{T, S}, colL::Integer, BR::BEDMatrix{U, R}, colR::Integer) where {T, S, U, R}
     @boundscheck begin
         checkbounds(BL, :, colL)
         checkbounds(BR, :, colR)
@@ -766,7 +766,7 @@ function column_dot{T, S, U, R}(BL::BEDMatrix{T, S}, colL::Integer, BR::BEDMatri
 end
 
 
-function column_NAsup_dot{T, S}(B::BEDMatrix{T, S}, col::Integer, v::AbstractArray)
+function column_NAsup_dot(B::BEDMatrix{T, S}, col::Integer, v::AbstractArray) where {T, S}
     @boundscheck B.n == length(v) || throw(DimensionMismatch("v has incorrect length"))
 
     X = B.X
@@ -801,7 +801,7 @@ end
 column_dist_dot(B::BEDMatrix, col::Integer, v::AbstractArray, ::Colon) = column_dist_dot(B, col, v)
 column_dist_dot(B::BEDMatrix, col::Integer, v::AbstractArray) = unsafe_column_dist_dot(B.X, col, 1, 1, B._byteheight, B._lastrowSNPheight, v)
 
-function column_dist_dot{T, S, R <: AbstractUnitRange}(B::BEDMatrix{T, S}, col::Integer, v::AbstractArray, ranges::Vector{R})
+function column_dist_dot(B::BEDMatrix{T, S}, col::Integer, v::AbstractArray, ranges::Vector{R}) where {T, S, R <: AbstractUnitRange}
     nasum = na2sum = dotsum = zero(promote_type(T, eltype(v), Int))
     zero_count = one_count = two_count = na_count = 0
 
@@ -819,7 +819,7 @@ function column_dist_dot{T, S, R <: AbstractUnitRange}(B::BEDMatrix{T, S}, col::
     return (zero_count, one_count, two_count, na_count, dotsum, nasum, na2sum)
 end
 
-function column_dist_dot{T, S, R <: Integer}(B::BEDMatrix{T, S}, col::Integer, v::AbstractArray, inds::Vector{R})
+function column_dist_dot(B::BEDMatrix{T, S}, col::Integer, v::AbstractArray, inds::Vector{R}) where {T, S, R <: Integer}
     nasum = na2sum = dotsum = zero(promote_type(T, eltype(v), Int))
 
     zero_count = 0

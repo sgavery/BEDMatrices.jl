@@ -1,4 +1,4 @@
-__precompile__()
+
 
 """
     module BEDMatrices
@@ -10,7 +10,7 @@ documentation for more details.
 
 """
 module BEDMatrices
-using Base.LinAlg.axpy!
+
 
 module Consts
 include("constants.jl")
@@ -19,8 +19,8 @@ end
 const NA_byte = Consts.NA_byte
 
 include("bedmatrix.jl")
-include("coltools.jl")
-include("gwas.jl")
+# include("coltools.jl")
+# include("gwas.jl")
 
 export BEDintomatrix,
     BEDintomatrix!,
@@ -31,19 +31,19 @@ export BEDintomatrix,
     getflips,
     setflips!,
     NArep,
-    getquartermap,
-    hasNAs,
-    countNAs,
-    BEDdot,
-    column_dist,
-    column_sum,
-    column_dot,
-    column_NAsup_dot,
-    column_sumabs2,
-    column_norm,
-    column_mean_and_std,
-    column_mean_and_var,
-    GWAS,
-    gwas_writecsv
+    getquartermap
+#    hasNAs,
+#    countNAs,
+#    BEDdot,
+#    column_dist,
+#    column_sum,
+#    column_dot,
+#    column_NAsup_dot,
+#    column_sumabs2,
+#    column_norm,
+#    column_mean_and_std,
+#    column_mean_and_var,
+#    GWAS,
+#    gwas_writecsv
 
 end
