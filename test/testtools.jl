@@ -57,7 +57,7 @@ end
 function quarterstobyte(v::Vector{UInt8})
     byte = 0x0
     for (qidx, q) in enumerate(v)
-        byte += q << 2*(qidx - 1)
+        byte += q << (2*(qidx - 1))
     end
     byte
 end

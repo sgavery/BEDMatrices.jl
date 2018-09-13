@@ -95,7 +95,7 @@ If bytes are UInt16, then it should be in big endian format.
 
 """
 # Puts first two bytes into big endian format
-checkmagic(bytes::Vector{UInt8}) = checkmagic(convert(UInt16, bytes[1]) << 8 + bytes[2])
+checkmagic(bytes::Vector{UInt8}) = checkmagic((convert(UInt16, bytes[1]) << 8) + bytes[2])
 
 checkmagic(twobytes::UInt16) = (twobytes == Consts.plinkmagic ||
                                 error("Bad magic: not a plink bed file"))
@@ -106,7 +106,7 @@ function checkmagic(bedstream::IO)
     # Note that I don't just read(bedstream, UInt16) to avoid system
     # endian dependence, although I believe julia currently only runs
     # on little endian machines.
-    return checkmagic(convert(UInt16, read(bedstream, UInt8)) << 8 + read(bedstream, UInt8))
+    return checkmagic(convert(UInt16, (read(bedstream, UInt8)) << 8) + read(bedstream, UInt8))
 end
 
 
@@ -784,7 +784,7 @@ end
 
 function rowtobytequarter(row::Integer)
     # Curse you julia for your foolish 1-indexing!
-    return ((row - 1) >> 2 + 1, (row - 1) & 3 + 1)
+    return (((row - 1) >> 2) + 1, ((row - 1) & 3) + 1)
 end
 
 """
