@@ -578,7 +578,7 @@ function Base.size(B::BEDMatrix, k::Integer)
     return k == 1 ? B.n : ifelse(k == 2, B.p, 1)
 end
 
-Base.linearindexing{T<:BEDMatrix}(::Type{T}) = Base.LinearSlow()
+Base.linearindexing{T<:BEDMatrix}(::Type{T}) = Base.IndexCartesian()
 
 # not sure if this is the right definition; see
 # https://github.com/JuliaLang/julia/issues/16614.

@@ -224,11 +224,11 @@ quarterfuncvector{T}(func::Function, ::Type{T}=Int, func_na=0x00) = ntuple(q -> 
 
 #################### SubArray Interface ####################
 
-Column{T, K, B} = SubArray{T, 1, K, Tuple{Colon, Int}, B}
+Column{T, K, B} = SubArray{T, 1, K, Tuple{Base.Slice{Base.OneTo{Int}}, Int}, B}
 BEDColumn{T, K <: BEDMatrix} = Column{T, K, false}
 
-ColumnUnitRange{T, K, R <: Union{AbstractUnitRange, Colon}, B} = SubArray{T, 1, K, Tuple{R, Int}, B}
-BEDColumnUnitRange{T, K <: BEDMatrix, R <: Union{AbstractUnitRange, Colon}} = ColumnUnitRange{T, K, R, false}
+ColumnUnitRange{T, K, R <: Union{AbstractUnitRange, Base.Slice{Base.OneTo{Int}}}, B} = SubArray{T, 1, K, Tuple{R, Int}, B}
+BEDColumnUnitRange{T, K <: BEDMatrix, R <: Union{AbstractUnitRange, Base.Slice{Base.OneTo{Int}}}} = ColumnUnitRange{T, K, R, false}
 
 SubColumn{T, K, J, B} = SubArray{T, 1, K, Tuple{J, Int}, B}
 BEDSubColumn{T, K <: BEDMatrix, J, B} = SubArray{T, 1, K, Tuple{J, Int}, B}
