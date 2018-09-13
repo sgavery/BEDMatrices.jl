@@ -357,9 +357,9 @@ immutable BEDMatrix{T, S<:AbstractMatrix} <: DenseArray{T, 2}
     _flip::BitVector                     # whether to flip SNP major--minor
                                          # allele encoding for each SNP
 
-    function BEDMatrix(n::Integer, p::Integer, X::AbstractMatrix{UInt8}, navalue,
+    function BEDMatrix{T, S}(n::Integer, p::Integer, X::S, navalue::T,
                        path::AbstractString, colnames::AbstractVector, rownames::AbstractVector,
-                       bytemap, flip::BitVector)
+                       bytemap, flip::BitVector) where {T, S<:AbstractMatrix{UInt8}}
         byteheight = ceil(Int, n/4)
         lastrowheight = n - 4*(byteheight - 1)
 
@@ -578,7 +578,7 @@ function Base.size(B::BEDMatrix, k::Integer)
     return k == 1 ? B.n : ifelse(k == 2, B.p, 1)
 end
 
-Base.linearindexing{T<:BEDMatrix}(::Type{T}) = Base.IndexCartesian()
+Base.IndexStyle{T<:BEDMatrix}(::Type{T}) = Base.IndexCartesian()
 
 # not sure if this is the right definition; see
 # https://github.com/JuliaLang/julia/issues/16614.
