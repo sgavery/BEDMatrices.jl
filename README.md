@@ -12,7 +12,19 @@ package [BEDMatrix](https://github.com/QuantGen/BEDMatrix).
 Installation
 -----------
 
-The package is currently only available through
+Note that there are SSL issues with julia v0.5 and earlier.
+
+### From github
+
+To install run
+
+```julia
+julia> Pkg.clone("https://github.com/sgavery/BEDMatrices.jl.git")
+```
+
+### From MSU gitlab (deprecated)
+
+The package is available through
 MSU [gitlab](https://gitlab.msu.edu/QuantGen/BEDMatrices.jl). To
 install, run the following
 
