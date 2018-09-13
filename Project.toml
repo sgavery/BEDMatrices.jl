@@ -1,6 +1,9 @@
-authors = ["Steven Avery <savery@msu.edu>"]
 name = "BEDMatrices"
 uuid = "fd48fea8-b6da-11e8-2710-0f863da72aa0"
+authors = ["Steven Avery <savery@msu.edu>"]
 version = "0.1.0"
 
 [deps]
+Mmap = "a63ad114-7e13-5084-954f-fe012c677804"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

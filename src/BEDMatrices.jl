@@ -10,7 +10,7 @@ documentation for more details.
 
 """
 module BEDMatrices
-
+import Mmap
 
 module Consts
 include("constants.jl")

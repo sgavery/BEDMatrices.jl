@@ -1,8 +1,10 @@
 # testtools.jl
 
+import Random
+
 function simulatedBEDMatrix(n::Integer, p::Integer, datatype::DataType=UInt8, navalue=BEDMatrices.NA_byte,
                             missingvalues=true, flips=false)
-    srand(0)  # for reproducibility
+    Random.seed!(0)  # for reproducibility
     if missingvalues
         M = rand(0b00:0b11, n, p)
     else
@@ -12,7 +14,7 @@ function simulatedBEDMatrix(n::Integer, p::Integer, datatype::DataType=UInt8, na
     byten = cld(n, 4)
     numlastsnps = n - 4*(byten - 1)
 
-    X = Matrix{UInt8}(byten, p)
+    X = Matrix{UInt8}(undef, byten, p)
     for col in 1:p
         for r in 1:(byten - 1)
             X[r, col] = quarterstobyte(M[(4r - 3):(4r), col])
@@ -34,7 +36,7 @@ function simulatedBEDMatrix(n::Integer, p::Integer, datatype::DataType=UInt8, na
     navalue_typed = convert(datatype, navalue)
 
     if flips
-        data = Matrix{datatype}(n, p)
+        data = Matrix{datatype}(undef, n, p)
         for col in 1:p
             if flipvec[col]
                 for row in 1:n
@@ -57,7 +59,7 @@ end
 function quarterstobyte(v::Vector{UInt8})
     byte = 0x0
     for (qidx, q) in enumerate(v)
-        byte += q << 2*(qidx - 1)
+        byte += q << (2*(qidx - 1))
     end
     byte
 end
@@ -70,8 +72,8 @@ function readRAW(filename::String)
     header = split(lines[1])
     p = length(header) - 6
     colnames = header[7:end]
-    data = Matrix{UInt8}(n, p)
-    rownames = Vector{String}(n)
+    data = Matrix{UInt8}(undef, n, p)
+    rownames = Vector{String}(undef, n)
 
     for (row, line) in enumerate(lines[2:end])
         fields = split(line)

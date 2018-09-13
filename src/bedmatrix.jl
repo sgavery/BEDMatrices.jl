@@ -164,9 +164,10 @@ function unsafe_breakbyte!(vector::AbstractArray, byte::UInt8,
                            bytemap=Consts.bytetoquarters, flip::Bool=false,
                            vecstart::Integer=1, quarterstart::Integer=1, quarterstop::Integer=4)
 
-    @inbounds copy!(vector, vecstart,
-                    breakbyte(byte, bytemap, flip), quarterstart,
-                    quarterstop - quarterstart + 1)
+    # Use `unsafe_copyto!`?
+    @inbounds copyto!(vector, vecstart,
+                             breakbyte(byte, bytemap, flip), quarterstart,
+                             quarterstop - quarterstart + 1)
     vector
 end
 
@@ -257,7 +258,7 @@ function BEDintomatrix(bedfilename::AbstractString;
         n, p = BEDsize(filebase)
     end
 
-    A = Matrix{T}(n, p)
+    A = Matrix{T}(undef, n, p)
 
     fsz = filesize(bedfilename)
     if use_mmap && 0 < fsz < typemax(Int)
@@ -578,7 +579,7 @@ function Base.size(B::BEDMatrix, k::Integer)
     return k == 1 ? B.n : ifelse(k == 2, B.p, 1)
 end
 
-Base.IndexStyle(::Type{T}) where {T<:BEDMatrix} = Base.IndexCartesian
+Base.IndexStyle(::Type{T}) where {T<:BEDMatrix} = Base.IndexCartesian()
 
 # not sure if this is the right definition; see
 # https://github.com/JuliaLang/julia/issues/16614.
@@ -660,7 +661,7 @@ use a flipped representation.
 """
 function setflips!(B::BEDMatrix, flip_logical::AbstractVector{Bool})
     length(flip_logical) == size(B, 2) || throw(DimensionsMismatch("flip had incorrect length"))
-    copy!(B._flip, flip_logical)
+    copyto!(B._flip, flip_logical)
     B._flip
 end
 
@@ -722,7 +723,7 @@ end
 function Base.getindex(B::BEDMatrix{T, S}, ::Colon, cols::AbstractVector{K}) where {T, S, K<:Integer}
     @boundscheck checkbounds(B, :, cols)
 
-    matrix = Matrix{T}(B.n, length(cols))
+    matrix = Matrix{T}(undef, B.n, length(cols))
 
     for (cidx, col) in enumerate(cols)
         unsafe_getcol!(matrix, B, col, (cidx - 1)*B.n + 1)
@@ -739,7 +740,7 @@ end
 function Base.getindex(B::BEDMatrix{T, S}, rrange::AbstractUnitRange, cols::AbstractVector{K}) where {T, S, K <: Integer}
     @boundscheck checkbounds(B, rrange, cols)
 
-    matrix = Matrix{T}(length(rrange), length(cols))
+    matrix = Matrix{T}(undef, length(rrange), length(cols))
     for (cidx, col) in enumerate(cols)
         unsafe_getrowrange!(matrix, B, rrange, col, (cidx - 1)*length(rrange) + 1)
     end
@@ -753,7 +754,7 @@ function unsafe_getindex(B::BEDMatrix{T, S}, row::Integer, col::Integer) where {
 end
 
 function unsafe_getcol(B::BEDMatrix{T, S}, col::Integer) where {T, S}
-    column = Vector{T}(B.n)
+    column = Vector{T}(undef, B.n)
 
     unsafe_getcol!(column, B, col)
     return column
@@ -766,7 +767,7 @@ function unsafe_getcol!(column::AbstractArray{T}, B::BEDMatrix{T, S}, col::Integ
 end
 
 function unsafe_getrowrange(B::BEDMatrix{T, S}, rrange::AbstractUnitRange, col::Integer) where {T, S}
-    vector = Vector{T}(length(rrange))
+    vector = Vector{T}(undef, length(rrange))
     unsafe_getrowrange!(vector, B, rrange, col)
     return vector
 end
