@@ -95,7 +95,7 @@ If bytes are UInt16, then it should be in big endian format.
 
 """
 # Puts first two bytes into big endian format
-checkmagic(bytes::Vector{UInt8}) = checkmagic(convert(UInt16, bytes[1]) << 8 + bytes[2])
+checkmagic(bytes::Vector{UInt8}) = checkmagic((convert(UInt16, bytes[1]) << 8) + bytes[2])
 
 checkmagic(twobytes::UInt16) = (twobytes == Consts.plinkmagic ||
                                 error("Bad magic: not a plink bed file"))
@@ -106,7 +106,7 @@ function checkmagic(bedstream::IO)
     # Note that I don't just read(bedstream, UInt16) to avoid system
     # endian dependence, although I believe julia currently only runs
     # on little endian machines.
-    return checkmagic(convert(UInt16, read(bedstream, UInt8)) << 8 + read(bedstream, UInt8))
+    return checkmagic((convert(UInt16, read(bedstream, UInt8)) << 8) + read(bedstream, UInt8))
 end
 
 
@@ -358,9 +358,9 @@ struct BEDMatrix{T, S<:AbstractMatrix} <: DenseArray{T, 2}
     _flip::BitVector                     # whether to flip SNP major--minor
                                          # allele encoding for each SNP
 
-    function BEDMatrix{T, S}(n::Integer, p::Integer, X::S, navalue,
-                             path::AbstractString, colnames::AbstractVector, rownames::AbstractVector,
-                             bytemap, flip::BitVector) where {T, S<:AbstractMatrix{UInt8}}
+    function BEDMatrix{T, S}(n::Integer, p::Integer, X::S, navalue::T,
+                       path::AbstractString, colnames::AbstractVector, rownames::AbstractVector,
+                       bytemap, flip::BitVector) where {T, S<:AbstractMatrix{UInt8}}
         byteheight = ceil(Int, n/4)
         lastrowheight = n - 4*(byteheight - 1)
 
@@ -579,6 +579,7 @@ function Base.size(B::BEDMatrix, k::Integer)
     return k == 1 ? B.n : ifelse(k == 2, B.p, 1)
 end
 
+
 Base.IndexStyle(::Type{T}) where {T<:BEDMatrix} = Base.IndexCartesian()
 
 # not sure if this is the right definition; see
@@ -785,7 +786,7 @@ end
 
 function rowtobytequarter(row::Integer)
     # Curse you julia for your foolish 1-indexing!
-    return ((row - 1) >> 2 + 1, (row - 1) & 3 + 1)
+    return (((row - 1) >> 2) + 1, ((row - 1) & 3) + 1)
 end
 
 """

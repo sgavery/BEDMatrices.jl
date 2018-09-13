@@ -1,6 +1,11 @@
 BEDMatrices.jl
 ==============
 
+[![Build Status](https://travis-ci.com/sgavery/BEDMatrices.jl.svg?branch=master)](https://travis-ci.com/sgavery/BEDMatrices.jl)
+[![Coverage Status](https://coveralls.io/repos/github/sgavery/BEDMatrices.jl/badge.svg?branch=master)](https://coveralls.io/github/sgavery/BEDMatrices.jl?branch=master)
+
+----
+
 Tools for efficiently reading, memory-mapping, and
 manipulating [PLINK](http://zzz.bwh.harvard.edu/plink/) (see
 also [PLINK1.9](https://www.cog-genomics.org/plink2)) BED-formatted
@@ -8,11 +13,22 @@ genotype data (.bed, .fam, .bim files)
 in [julia](http://julialang.org/). This package is, in part, based on the R
 package [BEDMatrix](https://github.com/QuantGen/BEDMatrix).
 
-
 Installation
 -----------
 
-The package is currently only available through
+Note that there are SSL issues with julia v0.5 and earlier.
+
+### From github
+
+To install run
+
+```julia
+julia> Pkg.clone("https://github.com/sgavery/BEDMatrices.jl.git")
+```
+
+### From MSU gitlab (deprecated)
+
+The package is available through
 MSU [gitlab](https://gitlab.msu.edu/QuantGen/BEDMatrices.jl). To
 install, run the following
 

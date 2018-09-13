@@ -224,17 +224,17 @@ quarterfuncvector(func::Function, ::Type{T}=Int, func_na=0x00) where {T} = ntupl
 
 #################### SubArray Interface ####################
 
-typealias Column{T, K, B} SubArray{T, 1, K, Tuple{Colon, Int}, B}
-typealias BEDColumn{T, K <: BEDMatrix} Column{T, K, false}
+Column{T, K, B} = SubArray{T, 1, K, Tuple{Base.Slice{Base.OneTo{Int}}, Int}, B}
+BEDColumn{T, K <: BEDMatrix} = Column{T, K, false}
 
-typealias ColumnUnitRange{T, K, R <: Union{AbstractUnitRange, Colon}, B} SubArray{T, 1, K, Tuple{R, Int}, B}
-typealias BEDColumnUnitRange{T, K <: BEDMatrix, R <: Union{AbstractUnitRange, Colon}} ColumnUnitRange{T, K, R, false}
+ColumnUnitRange{T, K, R <: Union{AbstractUnitRange, Base.Slice{Base.OneTo{Int}}}, B} = SubArray{T, 1, K, Tuple{R, Int}, B}
+BEDColumnUnitRange{T, K <: BEDMatrix, R <: Union{AbstractUnitRange, Base.Slice{Base.OneTo{Int}}}} = ColumnUnitRange{T, K, R, false}
 
-typealias SubColumn{T, K, J, B} SubArray{T, 1, K, Tuple{J, Int}, B}
-typealias BEDSubColumn{T, K <: BEDMatrix, J, B} SubArray{T, 1, K, Tuple{J, Int}, B}
+SubColumn{T, K, J, B} = SubArray{T, 1, K, Tuple{J, Int}, B}
+BEDSubColumn{T, K <: BEDMatrix, J, B} = SubArray{T, 1, K, Tuple{J, Int}, B}
 
 # Strictly two dimensional view of BEDMatrix
-typealias BEDSubMatrix{T, K <: BEDMatrix, R} SubArray{T, 2, K, R, false}
+BEDSubMatrix{T, K <: BEDMatrix, R} = SubArray{T, 2, K, R, false}
 
 """
     hasNAs(B)
