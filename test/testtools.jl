@@ -32,7 +32,7 @@ function simulatedBEDMatrix(n::Integer, p::Integer, datatype::DataType=UInt8, na
     end
 
     bed = BEDMatrix{datatype, typeof(X)}(n, p, X, convert(datatype, navalue),
-                                         path, colnames, rownames, BEDMatrices.getbytemap(convert(datatype, navalue)), flipvec)
+                                         path, colnames, rownames, BEDMatrices.getbytemap(datatype, convert(datatype, navalue)), flipvec)
     navalue_typed = convert(datatype, navalue)
 
     if flips

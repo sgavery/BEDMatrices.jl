@@ -128,9 +128,9 @@ end
 BEDmode(bytevector::Vector{UInt8}) = BEDmode(bytevector[3])
 
 
-getbytemap(navalue::T) where {T} = getbytemap((convert(T, 0b10), navalue,
-                                     convert(T, 0b01), convert(T, 0b00)))
-function getbytemap(quartermap::Tuple{T, T, T, T}) where {T}
+getbytemap(::Type{T}, navalue::T) where {T} = getbytemap((convert(T, 0b10), navalue,
+                                                          convert(T, 0b01), convert(T, 0b00)))
+function getbytemap(quartermap::Tuple)
     bytemap = hcat([(rawformat(byte & 0b00_00_00_11, quartermap),
                      rawformat((byte & 0b00_00_11_00) >> 2, quartermap),
                      rawformat((byte & 0b00_11_00_00) >> 4, quartermap),
@@ -286,7 +286,7 @@ function BEDintomatrix!(A::AbstractMatrix{T}, bedvector::Vector{UInt8}, navalue=
     byteheight = ceil(Int, n/4)
     quarterstop = n - 4*(byteheight - 1)
 
-    bytemap = getbytemap(convert(T, navalue))
+    bytemap = getbytemap(T, navalue)
 
     @inbounds for col in 1:p
         unsafe_copybytestosnps!(A, bedvector, byteheight*(col - 1) + 3 + 1, 1, byteheight*col + 3, quarterstop, n*(col - 1) + 1, bytemap)
@@ -308,7 +308,7 @@ function BEDintomatrix!(A::AbstractMatrix{T}, bedstream::IO, navalue=NA_byte) wh
     bytestop = ceil(Int, n/4)
     quarterstop = n - 4*(bytestop - 1)
 
-    bytemap = getbytemap(convert(T, navalue))
+    bytemap = getbytemap(T, convert(T, navalue))
 
     bytecol = Vector{UInt8}(bytestop)
     @inbounds for col in 1:p
@@ -467,7 +467,7 @@ julia> rownames(bed)[1:5]
 
 """
 function BEDMatrix(bedfilename::AbstractString;
-                   datatype::DataType=Int8,
+                   datatype::Type=Int8,
                    nsamples::Integer=0, nSNPs::Integer=0, navalue=NA_byte,
                    famfile::AbstractString="", bimfile::AbstractString="",
                    quartermap::Tuple=Consts.quarterstohuman, flip::AbstractVector=Int[])
@@ -493,7 +493,7 @@ function BEDMatrix(bedfilename::AbstractString;
 
     # validate quartermap and navalue
     if quartermap == Consts.quarterstohuman
-        bytemap = getbytemap(convert(datatype, navalue))
+        bytemap = getbytemap(datatype, convert(datatype, navalue))
     else
         bytemap = getbytemap(quartermap)
         navalue = quartermap[2]
