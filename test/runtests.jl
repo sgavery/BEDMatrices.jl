@@ -23,7 +23,7 @@ const rowlogicals = [fill(true, 50), fill(false, 50), map(x -> x > 25, 1:50)]
 const collogicals = [fill(true, 1000), fill(false, 1000), map(x -> x > 777, 1:1000)]
 
 const examplerows, examplecols, exampledata = readRAW(examplepath*rawfile)
-const bed = BEDMatrix(examplepath*bedfile)
+const bed = BEDMatrix(examplepath*bedfile, navalue=0x03, datatype=UInt8)
 const simbeds = [simulatedBEDMatrix(4, 5), simulatedBEDMatrix(5, 5, Int, 255), simulatedBEDMatrix(6, 5, Float64),
                  simulatedBEDMatrix(7, 5, Int8, -128), simulatedBEDMatrix(1, 5, Int8, -128, false), simulatedBEDMatrix(2, 1, Int8, -128, false),
                  simulatedBEDMatrix(3, 1, UInt, 0b11, false), simulatedBEDMatrix(4, 1, Int8, -128, false),
