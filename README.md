@@ -16,28 +16,21 @@ package [BEDMatrix](https://github.com/QuantGen/BEDMatrix).
 Installation
 -----------
 
-Note that there are SSL issues with julia v0.5 and earlier.
+This requires julialang version 1.0.
 
 ### From github
 
-To install run
+To install, just clone this repository, and use the package manager to
+activate the package directory, by typing `]` on an empty julia prompt
+and then
 
 ```julia
-julia> Pkg.clone("https://github.com/sgavery/BEDMatrices.jl.git")
+(v1.0) pkg> activate .
+
+(BEDMatrices) pkg> instantiate
 ```
 
-### From MSU gitlab (deprecated)
-
-The package is available through
-MSU [gitlab](https://gitlab.msu.edu/QuantGen/BEDMatrices.jl). To
-install, run the following
-
-```julia
-julia> Pkg.clone("https://[username]@gitlab.msu.edu/QuantGen/BEDMatrices.jl.git")
-```
-
-You will be prompted for your gitlab credentials.
-
+See [docs.julialang.org](https://docs.julialang.org/en/v1/stdlib/Pkg/index.html#Using-someone-else's-project-1).
 
 Features
 --------
@@ -63,65 +56,55 @@ follows:
 ```julia
 julia> using BEDMatrices
 
-julia> bed = BEDMatrix("example.bed");
+julia> bed = BEDMatrix("test/data/example.bed");
 ```
+
+This also works if the ".bed" extension is omitted.
 
 For most purposes, we may now treat `bed` as an ordinary matrix. For
 example, we may index into it as
 
 ```julia
 julia> bed[2:12, 1:10]
-11×10 Array{Int8,2}:
- 1  1  1  1  3  2  2  2  1  1
- 1  0  0  2  0  0  1  2  0  1
- 2  0  0  0  1  0  2  1  1  2
- 0  1  0  0  0  1  1  0  1  0
- 1  1  1  0  0  0  0  2  1  1
- 1  0  2  0  3  0  1  2  3  0
- 1  2  2  0  1  2  1  0  2  0
- 1  1  0  1  0  1  1  1  0  1
- 1  2  1  1  2  0  1  1  0  1
- 2  1  1  0  1  0  1  0  2  0
- 2  0  0  1  1  2  0  1  0  1
+11×10 Array{Union{Missing, Int8},2}:
+ 1  1  1  1   missing  2  2  2  1         1
+ 1  0  0  2  0         0  1  2  0         1
+ 2  0  0  0  1         0  2  1  1         2
+ 0  1  0  0  0         1  1  0  1         0
+ 1  1  1  0  0         0  0  2  1         1
+ 1  0  2  0   missing  0  1  2   missing  0
+ 1  2  2  0  1         2  1  0  2         0
+ 1  1  0  1  0         1  1  1  0         1
+ 1  2  1  1  2         0  1  1  0         1
+ 2  1  1  0  1         0  1  0  2         0
+ 2  0  0  1  1         2  0  1  0         1
 ```
 
 If you prefer to use a different numeric type like `Float64`, you can
 define `bed` as follows
 
 ```julia
-julia> bed = BEDMatrix("example", datatype=Float64);
+julia> bed = BEDMatrix("test/data/example.bed", datatype=Union{Missing, Float64});
 
 julia> bed[2:12, 1:10]
-11×10 Array{Float64,2}:
- 1.0  1.0  1.0  1.0  3.0  2.0  2.0  2.0  1.0  1.0
- 1.0  0.0  0.0  2.0  0.0  0.0  1.0  2.0  0.0  1.0
- 2.0  0.0  0.0  0.0  1.0  0.0  2.0  1.0  1.0  2.0
- 0.0  1.0  0.0  0.0  0.0  1.0  1.0  0.0  1.0  0.0
- 1.0  1.0  1.0  0.0  0.0  0.0  0.0  2.0  1.0  1.0
- 1.0  0.0  2.0  0.0  3.0  0.0  1.0  2.0  3.0  0.0
- 1.0  2.0  2.0  0.0  1.0  2.0  1.0  0.0  2.0  0.0
- 1.0  1.0  0.0  1.0  0.0  1.0  1.0  1.0  0.0  1.0
- 1.0  2.0  1.0  1.0  2.0  0.0  1.0  1.0  0.0  1.0
- 2.0  1.0  1.0  0.0  1.0  0.0  1.0  0.0  2.0  0.0
- 2.0  0.0  0.0  1.0  1.0  2.0  0.0  1.0  0.0  1.0
+11×10 Array{Union{Missing, Float64},2}:
+ 1.0  1.0  1.0  1.0   missing  2.0  2.0  2.0  1.0       1.0
+ 1.0  0.0  0.0  2.0  0.0       0.0  1.0  2.0  0.0       1.0
+ 2.0  0.0  0.0  0.0  1.0       0.0  2.0  1.0  1.0       2.0
+ 0.0  1.0  0.0  0.0  0.0       1.0  1.0  0.0  1.0       0.0
+ 1.0  1.0  1.0  0.0  0.0       0.0  0.0  2.0  1.0       1.0
+ 1.0  0.0  2.0  0.0   missing  0.0  1.0  2.0   missing  0.0
+ 1.0  2.0  2.0  0.0  1.0       2.0  1.0  0.0  2.0       0.0
+ 1.0  1.0  0.0  1.0  0.0       1.0  1.0  1.0  0.0       1.0
+ 1.0  2.0  1.0  1.0  2.0       0.0  1.0  1.0  0.0       1.0
+ 2.0  1.0  1.0  0.0  1.0       0.0  1.0  0.0  2.0       0.0
+ 2.0  0.0  0.0  1.0  1.0       2.0  0.0  1.0  0.0       1.0
 ```
 
-Note that `3.0` (or `3` in the previous example) currently is the
-default indicator for missing values; this may change. (While this is
-in many ways an unfortunate choice, it is a literal translation of the
-BED format.) This is set by `BEDMatrices.NA_byte`:
+or as
 
 ```julia
-julia> BEDMatrices.NA_byte
-0x03
-```
-
-The `BEDMatrix` may be created with different NA behavior. For
-example, when working with `Float`s it is probably more desirable to
-use `NaN`:
-
-```julia
-julia> bed = BEDMatrix("example", datatype=Float64, navalue=NaN);
+julia> bed = BEDMatrix("test/data/example.bed", datatype=Float64, navalue=NaN);
 
 julia> bed[2:12, 1:10]
 11×10 Array{Float64,2}:
@@ -136,52 +119,26 @@ julia> bed[2:12, 1:10]
  1.0  2.0  1.0  1.0    2.0  0.0  1.0  1.0    0.0  1.0
  2.0  1.0  1.0  0.0    1.0  0.0  1.0  0.0    2.0  0.0
  2.0  0.0  0.0  1.0    1.0  2.0  0.0  1.0    0.0  1.0
+```
 
+Note that we had to specified `navalue` in the above, since the
+default representation of missing values is `missing` which cannot be
+converted to `Float64`. The representation of missing values is given
+by
+
+```julia
 julia> NArep(bed)
 NaN
 ```
-
-`NArep` returns the representation of missing values for the
-`BEDMatrix`. One can also work with `Nullable`s
-(see
-[julia docs](https://docs.julialang.org/en/stable/stdlib/base/#nullables))
-in this way:
-
-```julia
-julia> bed = BEDMatrix("example.bed", datatype=Nullable{Int}, navalue=Nullable{Int}());
-
-julia> NArep(bed)
-Nullable{Int64}()
-
-julia> bed[2:12, 1:10]
-11×10 Array{Nullable{Int64},2}:
- 1  1  1  1  #NULL  2  2  2  1      1
- 1  0  0  2  0      0  1  2  0      1
- 2  0  0  0  1      0  2  1  1      2
- 0  1  0  0  0      1  1  0  1      0
- 1  1  1  0  0      0  0  2  1      1
- 1  0  2  0  #NULL  0  1  2  #NULL  0
- 1  2  2  0  1      2  1  0  2      0
- 1  1  0  1  0      1  1  1  0      1
- 1  2  1  1  2      0  1  1  0      1
- 2  1  1  0  1      0  1  0  2      0
- 2  0  0  1  1      2  0  1  0      1
-```
-
-Note that it may be preferable to work
-with [NullableArrays](https://github.com/JuliaStats/NullableArrays.jl)
-instead of the above slicings for computationally intensive
-calculations. We leave that to the user or another module to
-implement.
 
 The `eltype` is exposed as the first parameter:
 
 ```julia
 julia> typeof(bed)
-BEDMatrices.BEDMatrix{Nullable{Int64},Array{UInt8,2}}
+BEDMatrix{Float64,Array{UInt8,2}}
 
 julia> eltype(bed)
-Nullable{Int64}
+Float64
 ```
 
 The second parameter, `Array{UInt8,2}`, refers to the internal
@@ -191,19 +148,16 @@ One can also get basic metadata about the `BEDMatrix` with various
 functions:
 
 ```julia
-julia> bed = BEDMatrix("example.bed", datatype=Float64, navalue=NaN);
+julia> bed = BEDMatrix("test/data/example", datatype=Union{Missing, Float64});
 
 julia> path(bed)
-"[...]/example.bed"
-
-julia> size(bed)
-(50,1000)
+"/home/savery/programming/genomics/BEDMatrices.jl/test/data/example.bed"
 
 julia> sizeof(bed)
 400000
 
-julia> Base.summarysize(bed)
-48615
+julia> size(bed)
+(50, 1000)
 
 julia> rownames(bed)[1:10]
 10-element Array{String,1}:
@@ -253,7 +207,7 @@ help?> BEDMatrix
 [...]
 ```
 
-Column-wise Operations
+Column-wise Operations (Not currently supported on this branch)
 ----------------------
 
 In general, working with slices, while convenient and intuitive, is

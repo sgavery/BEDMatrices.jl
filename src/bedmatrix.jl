@@ -388,7 +388,7 @@ end
 
 """
     BEDMatrix(bedfilename::AbstractString;
-              datatype::DataType=Int8, nsamples::Integer=0, nSNPs::Integer=0, navalue=NA_byte
+              datatype::DataType=Union{Missing, Int8}, nsamples::Integer=0, nSNPs::Integer=0, navalue=missing
               famfile::AbstractString="", bimfile::AbstractString="",
               quartermap::Tuple=Consts.quarterstohuman, flip::AbstractVector=[])
 
@@ -409,13 +409,13 @@ rownames/colnames will be generic.
  - `navalue`: the representation of missing values; this
    should not be used with quartermap.
  - `famfile`: the .fam file, only needed if the .fam file does
-   not have the same base name as `bedfilename`.
+   not have the same base name and path as `bedfilename`.
  - `bimfile`: the .bim file, only needed if the .bim file does
-   not have the same base name as `bedfilename`.
+   not have the same base name and path as `bedfilename`.
  - `quartermap`: a `Tuple` of the respective representation of
    homozygous minor, homozygous major, missing, and heterozygous
    values. Useful if you don't want to use standard RAW format
-   encoding.
+   encoding. `navalue` is ignored if this option is not the default.
  - `flip`: a `Vector` of indices that should have the major--minor
    representation flipped. `flip` may either be a list of indices, a
    logical vector with `false` representing no flipping, or a list of
@@ -427,22 +427,12 @@ rownames/colnames will be generic.
 julia> bed = BEDMatrix("test/data/example.bed");
 
 julia> bed[1:5, 1:5]
-5×5 Array{Int8,2}:
- 0  1  1  1  0
- 1  1  1  1  3
- 1  0  0  2  0
- 2  0  0  0  1
- 0  1  0  0  0
-
-julia> bed = BEDMatrix("test/data/example", datatype=Nullable{Int}, navalue=Nullable{Int}());
-
-julia> bed[1:5, 1:5]
-5×5 Array{Nullable{Int64},2}:
- 0  1  1  1  0    
- 1  1  1  1  #NULL
- 1  0  0  2  0    
- 2  0  0  0  1    
- 0  1  0  0  0    
+5×5 Array{Union{Missing, Int8},2}:
+ 0  1  1  1  0       
+ 1  1  1  1   missing
+ 1  0  0  2  0       
+ 2  0  0  0  1       
+ 0  1  0  0  0       
 
 julia> bed = BEDMatrix("test/data/example.bed", datatype=Float64, navalue=NaN);
 
@@ -454,7 +444,7 @@ julia> bed[1:5, 1:5]
  2.0  0.0  0.0  0.0    1.0
  0.0  1.0  0.0  0.0    0.0
 
-julia> bed = BEDMatrix("test/data/example", famfile="badfilename", nsamples=50);
+julia> bed = BEDMatrix("test/data/example.bed", famfile="badfilename", nsamples=50);
 
 julia> rownames(bed)[1:5]
 5-element Array{String,1}:
@@ -467,8 +457,8 @@ julia> rownames(bed)[1:5]
 
 """
 function BEDMatrix(bedfilename::AbstractString;
-                   datatype::Type=Int8,
-                   nsamples::Integer=0, nSNPs::Integer=0, navalue=NA_byte,
+                   datatype::Type=Union{Missing, Int8},
+                   nsamples::Integer=0, nSNPs::Integer=0, navalue=missing,
                    famfile::AbstractString="", bimfile::AbstractString="",
                    quartermap::Tuple=Consts.quarterstohuman, flip::AbstractVector=Int[])
 
